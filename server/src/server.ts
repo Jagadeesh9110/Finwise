@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import passport from "./config/passport"; 
+import aiRoutes from "./routes/aiRoutes";
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(passport.initialize());
 app.use("/api/auth", authRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get("/api/test", (req, res) => {
   res.json({ message: "Hello from the FinWise Server!" });

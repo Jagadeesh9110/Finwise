@@ -11,7 +11,7 @@ app = Flask(__name__)
 @app.route('/process_query', methods=['POST'])
 def process_query():
     """
-    This is the main endpoint that your Node.js server will call.
+    This is the main endpoint that Node.js server will call.
     For now, it simply confirms that it received the request.
     """
     # Get the data sent from the Node.js server
