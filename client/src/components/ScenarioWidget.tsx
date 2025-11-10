@@ -2,9 +2,9 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/Input";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { processScenario } from "@/lib/apiClient";
 
 interface ScenarioResults {
   originalBudget: number;
@@ -20,11 +20,10 @@ export function ScenarioWidget() {
 
   const scenarioMutation = useMutation({
     mutationFn: async (expense: number) => {
-      const res = await apiRequest("POST", "/api/scenarios/what-if", {
-        userId: "sample-user-1",
-        parameters: { expense },
+      return await processScenario({
+        type: "expense",
+        expense: expense,
       });
-      return res.json();
     },
     onSuccess: (data) => {
       setResults(data);

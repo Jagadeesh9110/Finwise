@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { processAICommand } from "@/lib/apiClient";
 import { useToast } from "@/hooks/useToast";
 
 interface AICommandBarProps {
@@ -27,16 +27,12 @@ export function AICommandBar({ onCommand }: AICommandBarProps) {
 
   const processCommandMutation = useMutation({
     mutationFn: async (command: string) => {
-      const res = await apiRequest("POST", "/api/ai/process-command", {
-        command,
-        userId: "sample-user-1", // TODO: Get from auth context
-      });
-      return res.json();
+      return await processAICommand(command);
     },
     onSuccess: (data) => {
       toast({
         title: "AI Response",
-        description: data.response,
+        description: data.response?.substring(0, 200) || "Analysis complete",
       });
       onCommand?.(command);
     },
@@ -93,6 +89,7 @@ export function AICommandBar({ onCommand }: AICommandBarProps) {
                 value={command}
                 onChange={(e) => setCommand(e.target.value)}
                 onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 className="flex-1 bg-transparent border-none outline-none focus-visible:ring-0"
                 data-testid="input-ai-command"
               />

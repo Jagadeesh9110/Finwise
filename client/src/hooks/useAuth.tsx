@@ -38,9 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include", 
       });
       setUser(profile);
+      // Store user ID for other components to use
+      if (profile.id) {
+        localStorage.setItem("userId", profile.id);
+      }
     } catch (error) {
       console.error("Failed to fetch user profile:", error);
       setUser(null);
+      localStorage.removeItem("userId");
     } finally {
       setLoading(false);
     }
@@ -61,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Logout failed:", error);
     } finally {
       setUser(null);
+      localStorage.removeItem("userId");
     }
   };
 

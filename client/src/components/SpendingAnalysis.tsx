@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/Select";
 import { Utensils, Car, Film, ShoppingBag } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { IFinancialProfile } from "@/types";
 
 interface SpendingCategory {
   name: string;
@@ -20,11 +22,33 @@ interface SpendingCategory {
 }
 
 export function SpendingAnalysis() {
-  const { data: profile } = useQuery({
-    queryKey: ["/api/financial-profiles/sample-user-1"],
+  const { user } = useAuth();
+  const userId = user?.id || localStorage.getItem("userId");
+
+  const { data: profile } = useQuery<IFinancialProfile>({
+    queryKey: [`/api/financial-profiles/${userId}`],
+    enabled: !!userId,
   });
 
-  const totalSpending = 42800;
+  // Calculate spending from transactions
+  const calculateSpending = () => {
+    if (!profile?.transactions) return { total: 0, categories: [] };
+
+    const expenses = profile.transactions.filter(t => t.type === 'expense');
+    const total = expenses.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    
+    // Group by category
+    const categoryMap = new Map<string, number>();
+    expenses.forEach(t => {
+      const current = categoryMap.get(t.category) || 0;
+      categoryMap.set(t.category, current + Math.abs(t.amount));
+    });
+
+    return { total, categoryMap };
+  };
+
+  const spending = calculateSpending();
+  const totalSpending = spending.total || 42800; // Fallback to default
   const spendingChange = 8;
 
   const categories: SpendingCategory[] = [
@@ -116,9 +140,7 @@ export function SpendingAnalysis() {
             transition={{ delay: index * 0.1 + 0.7 }}
             className="flex justify-between items-center p-3 bg-accent rounded-lg hover:bg-accent/80 transition-colors cursor-pointer"
             whileHover={{ scale: 1.02 }}
-            data-testid={`category-${category.name
-              .toLowerCase()
-              .replace(/\s/g, "-")}`}
+            data-testid={`category-${category.name.toLowerCase().replace(/\s/g, "-")}`}
           >
             <div className="flex items-center space-x-3">
               <div

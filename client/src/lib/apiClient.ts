@@ -53,3 +53,27 @@ export async function apiClient<T>(
   // prevents bugs in the rest of the application.
   return response.json();
 }
+
+// Add these helper functions to your existing apiClient.ts
+
+export async function processAICommand(command: string): Promise<any> {
+  return apiClient("/process-command", {
+    method: "POST",
+    body: JSON.stringify({ command }),
+  });
+}
+
+export async function processScenario(parameters: any): Promise<any> {
+  return apiClient("/scenarios/what-if", {
+    method: "POST",
+    body: JSON.stringify({ parameters }),
+  });
+}
+
+export async function getFinancialProfile(userId: string): Promise<any> {
+  return apiClient(`/financial-profiles/${userId}`);
+}
+
+export async function getAgentOutputs(userId: string): Promise<any> {
+  return apiClient(`/agent-outputs/${userId}`);
+}

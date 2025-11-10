@@ -2,32 +2,19 @@ import { motion } from "framer-motion";
 import { Card } from "@/components/ui/Card";
 import { Progress } from "@/components/ui/Progress";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { IFinancialProfile, IFinancialGoal } from "@/types";
 
 export function GoalProgress() {
-  const { data: profile } = useQuery({
-    queryKey: ["/api/financial-profiles/sample-user-1"],
+  const { user } = useAuth();
+  const userId = user?.id || localStorage.getItem("userId");
+  
+  const { data: profile } = useQuery<IFinancialProfile>({
+    queryKey: [`/api/financial-profiles/${userId}`],
+    enabled: !!userId,
   });
 
-  const goals = (profile as any)?.goals || [
-    {
-      name: "Emergency Fund",
-      target: 300000,
-      current: 240000,
-      deadline: "2024-12-31",
-    },
-    {
-      name: "House Down Payment",
-      target: 1500000,
-      current: 850000,
-      deadline: "2026-06-30",
-    },
-    {
-      name: "Europe Vacation",
-      target: 200000,
-      current: 45000,
-      deadline: "2025-12-31",
-    },
-  ];
+  const goals = profile?.goals || [];
 
   const getProgressColor = (progress: number) => {
     if (progress >= 80) return "hsl(158 64% 52%)";
@@ -46,12 +33,23 @@ export function GoalProgress() {
     return `${diffMonths} months remaining`;
   };
 
+  if (goals.length === 0) {
+    return (
+      <Card className="p-6" data-testid="goal-progress">
+        <h3 className="text-lg font-semibold mb-6">Goal Progress</h3>
+        <div className="text-center py-8 text-muted-foreground">
+          No goals set yet. Start by adding your financial goals!
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card className="p-6" data-testid="goal-progress">
       <h3 className="text-lg font-semibold mb-6">Goal Progress</h3>
 
       <div className="space-y-6">
-        {goals.map((goal: any, index: number) => {
+        {goals.map((goal: IFinancialGoal, index: number) => {
           const progress = (goal.current / goal.target) * 100;
           const progressColor = getProgressColor(progress);
 
@@ -61,9 +59,7 @@ export function GoalProgress() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.2 }}
-              data-testid={`goal-${goal.name
-                .toLowerCase()
-                .replace(/\s/g, "-")}`}
+              data-testid={`goal-${goal.name.toLowerCase().replace(/\s/g, "-")}`}
             >
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium">{goal.name}</span>
