@@ -82,7 +82,6 @@ class UserProfileRequest(BaseModel):
 class ProcessRequest(BaseModel):
     user_input: str
     user_profile: UserProfileRequest
-    analysis_type: Optional[str] = None
 
 class WhatIfScenarioRequest(BaseModel):
     user_profile: UserProfileRequest
@@ -110,70 +109,102 @@ async def process_financial_request(request: ProcessRequest):
         logger.info(f"Processing request: {request.user_input[:100]}...")
         
         # Convert Pydantic models to dicts
-        user_profile_dict = request.user_profile.dict()
+        user_profile_dict = request.user_profile.dict() if request.user_profile else None
         
-        # Convert financial goals
-        goals = []
-        for goal in user_profile_dict.get('financial_goals', []):
-            goals.append(FinancialGoal(
-                name=goal['name'],
-                target=goal['target'],
-                timeline_months=goal['timeline_months'],
-                priority=goal.get('priority', 1)
-            ))
-        
-        # Create UserProfile instance
-        user_profile = UserProfile(
-            age=user_profile_dict['age'],
-            annual_income=user_profile_dict['annual_income'],
-            monthly_expenses=user_profile_dict['monthly_expenses'],
-            savings=user_profile_dict['savings'],
-            debts=user_profile_dict['debts'],
-            financial_goals=goals,
-            risk_tolerance=user_profile_dict['risk_tolerance'],
-            investment_experience=user_profile_dict['investment_experience'],
-            time_horizon=user_profile_dict['time_horizon'],
-            transactions=user_profile_dict.get('transactions', [])
-        )
-        
+        profile_instance = None
+        if user_profile_dict:
+            # Convert financial goals
+            goals = []
+            for goal in user_profile_dict.get('financial_goals', []):
+                goals.append(FinancialGoal(
+                    name=goal['name'],
+                    target=goal['target'],
+                    timeline_months=goal['timeline_months'],
+                    priority=goal.get('priority', 1)
+                ))
+            
+            # Create UserProfile instance
+            profile_instance = UserProfile(
+                age=user_profile_dict['age'],
+                annual_income=user_profile_dict['annual_income'],
+                monthly_expenses=user_profile_dict['monthly_expenses'],
+                savings=user_profile_dict['savings'],
+                debts=user_profile_dict['debts'],
+                financial_goals=goals,
+                risk_tolerance=user_profile_dict['risk_tolerance'],
+                investment_experience=user_profile_dict['investment_experience'],
+                time_horizon=user_profile_dict['time_horizon'],
+                transactions=user_profile_dict.get('transactions', [])
+            )
+            profile_data_for_workflow = profile_instance.model_dump()
+        else:
+            profile_data_for_workflow = None
+
         # Process through workflow
-        result = workflow.process_request(request.user_input, user_profile.model_dump())
+        result = workflow.process_request(request.user_input, profile_data_for_workflow)
         
-        # Structure the response
+        # === MODIFIED: Structure response with complete metadata ===
+        final_output = result.get("final_output", "")
+        
+        # Determine if final_output is a dict (from master agent) or string (from educator)
+        if isinstance(final_output, dict):
+            response_text = final_output.get("response", str(final_output))
+            agent = final_output.get("agent", "master")
+            action_type = final_output.get("actionType")
+            priority = final_output.get("priority", "medium")
+            insights = final_output.get("insights", [])
+        else:
+            # This handles the FinancialEducator path
+            response_text = final_output
+            agent = "financial_educator"
+            action_type = "start_learning"
+            priority = "medium"
+            insights = []
+        
+        # Determine which agents were involved
+        agents_involved = []
+        if result.get("income_analysis"):
+            agents_involved.append("income_expense_analyzer")
+        if result.get("budget_plan"):
+            agents_involved.append("budget_planner")
+        if result.get("investment_advice"):
+            agents_involved.append("investment_advisor")
+        if result.get("debt_optimization"):
+            agents_involved.append("debt_optimizer")
+        if result.get("financial_education"):
+            agents_involved.append("financial_educator")
+        
+        if not agents_involved and agent:
+            agents_involved = [agent]
+        elif not agents_involved:
+             agents_involved = ["master"]
+
+        
         response = {
             "success": True,
-            "final_output": result.get("final_output", ""),
+            "final_output": response_text,
+            "agent": agent,
+            "actionType": action_type,
+            "priority": priority,
+            "insights": insights,
             "analysis_type": result.get("current_analysis", {}).get("type", "comprehensive"),
-            "agents_involved": [],
-            "detailed_analysis": {}
+            "agents_involved": agents_involved,
+            "detailed_analysis": {
+                "income_analysis": result.get("income_analysis"),
+                "budget_plan": result.get("budget_plan"),
+                "investment_advice": result.get("investment_advice"),
+                "debt_optimization": result.get("debt_optimization"),
+                "financial_education": result.get("financial_education")
+            }
         }
-        
-        # Add agent-specific outputs
-        if result.get("income_analysis"):
-            response["agents_involved"].append("income_analyzer")
-            response["detailed_analysis"]["income_analysis"] = result["income_analysis"]
-        
-        if result.get("budget_plan"):
-            response["agents_involved"].append("budget_planner")
-            response["detailed_analysis"]["budget_plan"] = result["budget_plan"]
-        
-        if result.get("investment_advice"):
-            response["agents_involved"].append("investment_advisor")
-            response["detailed_analysis"]["investment_advice"] = result["investment_advice"]
-        
-        if result.get("debt_optimization"):
-            response["agents_involved"].append("debt_optimizer")
-            response["detailed_analysis"]["debt_optimization"] = result["debt_optimization"]
-        
-        if result.get("financial_education"):
-            response["agents_involved"].append("financial_educator")
-            response["detailed_analysis"]["financial_education"] = result["financial_education"]
         
         return response
         
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ... (rest of api_service.py remains the same) ...
 
 @app.post("/api/agents/what-if-scenario")
 async def process_what_if_scenario(request: WhatIfScenarioRequest):

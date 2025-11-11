@@ -10,31 +10,29 @@ import {
   LogOut,
   Moon,
   Sun,
+  ListChecks 
 } from "lucide-react";
-// Corrected Imports: All component imports now use PascalCase
 import { AgentWorkflowVisualizer } from "./AgentWorkflowVisualizer";
 import { useAuth } from "@/hooks/useAuth";
-import { ThemeProvider, useTheme } from "./ThemeProvider"; // Assuming ThemeProvider is also a component
+import { useTheme } from "./ThemeProvider";
 import { Button } from "@/components/ui/Button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar";
 
+// === FIX 1: Add the new navigation item for All Insights ===
 const navigationItems = [
   { href: "/dashboard", icon: Gauge, label: "Strategist's Desk" },
   { href: "/scenarios", icon: HelpCircle, label: "What-If Scenarios" },
   { href: "/financial-story", icon: BookOpen, label: "Financial Story" },
   { href: "/portfolio", icon: PieChart, label: "Investment Portfolio" },
-  // We will create the settings page later
+  { href: "/all-insights", icon: ListChecks, label: "All Insights" }, 
   // { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export function Sidebar() {
   const [location] = useLocation();
-  // The useAuth hook now provides our custom authentication state and logout function
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  // The handleLogout function is now much simpler. It just calls the logout
-  // function from our useAuth hook, which handles the backend API call.
   const handleLogout = async () => {
     try {
       await logout();
@@ -72,7 +70,7 @@ export function Sidebar() {
 
       {/* Navigation Menu */}
       <nav className="flex-1 p-6 space-y-2" data-testid="navigation">
-        {navigationItems.map((item, index) => {
+        {navigationItems.map((item, index) => { 
           const isActive = location === item.href;
 
           return (

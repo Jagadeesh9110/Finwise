@@ -1,66 +1,97 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card } from "../components/ui/Card";
 import { Progress } from "../components/ui/Progress";
 import { Button } from "../components/ui/Button";
-import { Trophy, Target, Clock, TrendingUp, Star } from "lucide-react";
+import { 
+  Trophy, 
+  Target, 
+  Clock, 
+  TrendingUp, 
+  Star, 
+  Loader2,
+  BarChart3,
+  CreditCard,
+  PiggyBank,
+  GraduationCap
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { IFinancialProfile, IFinancialGoal, IAgentOutput } from "@/types";
+import { GoalDetailModal } from "@/components/GoalDetailModal"; 
+
+// Helper to get the correct icon for milestones
+const milestoneIcons: { [key: string]: typeof Star } = {
+  master: Star,
+  budget_planner: BarChart3,
+  debt_optimizer: CreditCard,
+  income_expense_analyzer: PiggyBank,
+  investment_advisor: TrendingUp,
+  financial_educator: GraduationCap,
+  default: Star
+};
+
+// Helper to format dates
+const formatMilestoneDate = (dateString: string | Date) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffDays = Math.round((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "1 day ago";
+  if (diffDays < 30) return `${diffDays} days ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+  return `${Math.floor(diffDays / 365)} years ago`;
+};
 
 export default function FinancialStory() {
-  const { data: profile } = useQuery({
-    queryKey: ["/api/financial-profiles/sample-user-1"],
+  const { user } = useAuth();
+  const userId = user?.id || localStorage.getItem("userId");
+  
+  const [selectedGoal, setSelectedGoal] = useState<IFinancialGoal | null>(null);
+
+
+  const { data: profile, isLoading: isLoadingProfile } = useQuery<IFinancialProfile>({
+    queryKey: [`/api/financial-profiles`, userId],
+    enabled: !!userId,
   });
 
-  const goals = (profile as any)?.goals || [
-    {
-      name: "Emergency Fund",
-      target: 300000,
-      current: 240000,
-      deadline: "2024-12-31",
-    },
-    {
-      name: "House Down Payment",
-      target: 1500000,
-      current: 850000,
-      deadline: "2026-06-30",
-    },
-    {
-      name: "Europe Vacation",
-      target: 200000,
-      current: 45000,
-      deadline: "2025-12-31",
-    },
-  ];
+  const { data: insights, isLoading: isLoadingInsights } = useQuery<IAgentOutput[]>({
+    queryKey: [`/api/agent-outputs/user`, userId],
+    enabled: !!userId,
+  });
 
-  const milestones = [
-    {
-      title: "Started Your Financial Journey",
-      description: "You took the first step by setting up FinWise",
-      date: "3 months ago",
-      completed: true,
-      icon: Star,
+  const goals = profile?.goals || [];
+
+
+  const { totalTarget, totalCurrent } = goals.reduce(
+    (acc, goal) => {
+      acc.totalTarget += goal.target;
+      acc.totalCurrent += goal.current;
+      return acc;
     },
-    {
-      title: "Built Emergency Fund Foundation",
-      description: "Reached 50% of your emergency fund target",
-      date: "2 months ago",
-      completed: true,
-      icon: Trophy,
-    },
-    {
-      title: "Investment Portfolio Launched",
-      description: "Started your first SIP investments",
-      date: "1 month ago",
-      completed: true,
-      icon: TrendingUp,
-    },
-    {
-      title: "Emergency Fund Goal Achievement",
-      description: "Complete your 6-month emergency fund",
-      date: "In 2 months",
-      completed: false,
-      icon: Target,
-    },
-  ];
+    { totalTarget: 0, totalCurrent: 0 }
+  );
+
+  const healthPercentage = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
+  const totalAssets = (profile?.savings || 0) + totalCurrent;
+  
+  // Helper to format currency
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  if (isLoadingProfile || isLoadingInsights) {
+    return (
+      <div className="flex-1 p-6 overflow-auto flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 p-6 overflow-auto" data-testid="financial-story">
@@ -77,36 +108,36 @@ export default function FinancialStory() {
           </p>
         </div>
 
-        {/* Overall Progress */}
+        {/* Overall Progress -  Dynamic */}
         <Card className="p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold">Overall Financial Health</h3>
-            <div className="text-2xl font-bold text-primary">73%</div>
+            <div className="text-2xl font-bold text-primary">{healthPercentage}%</div>
           </div>
 
-          <Progress value={73} className="mb-4" />
+          <Progress value={healthPercentage} className="mb-4" />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <div className="text-center">
-              <div className="text-2xl font-bold text-chart-1">3</div>
+              <div className="text-2xl font-bold text-chart-1">{goals.length}</div>
               <div className="text-sm text-muted-foreground">Goals Active</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-chart-2">2</div>
+              <div className="text-2xl font-bold text-chart-2">{insights?.length || 0}</div>
               <div className="text-sm text-muted-foreground">
                 Milestones Achieved
               </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-chart-3">₹4.85L</div>
+              <div className="text-2xl font-bold text-chart-3">{formatCurrency(totalAssets)}</div>
               <div className="text-sm text-muted-foreground">Total Assets</div>
             </div>
           </div>
         </Card>
 
-        {/* Goal Details */}
+        {/* Goal Details -  Dynamic */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {goals.map((goal: any, index: number) => {
+          {goals.map((goal: IFinancialGoal, index: number) => {
             const progress = (goal.current / goal.target) * 100;
             const daysToDeadline = Math.ceil(
               (new Date(goal.deadline).getTime() - new Date().getTime()) /
@@ -136,8 +167,8 @@ export default function FinancialStory() {
 
                   <div className="mb-4">
                     <div className="flex justify-between text-sm mb-2">
-                      <span>₹{goal.current.toLocaleString()}</span>
-                      <span>₹{goal.target.toLocaleString()}</span>
+                      <span>{formatCurrency(goal.current)}</span>
+                      <span>{formatCurrency(goal.target)}</span>
                     </div>
                     <Progress value={progress} className="h-3" />
                     <div className="text-xs text-muted-foreground mt-1">
@@ -156,7 +187,13 @@ export default function FinancialStory() {
                     </div>
                   </div>
 
-                  <Button variant="outline" size="sm" className="w-full mt-4">
+                  {/* 5. Make button interactive */}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full mt-4"
+                    onClick={() => setSelectedGoal(goal)}
+                  >
                     View Details
                   </Button>
                 </Card>
@@ -165,71 +202,71 @@ export default function FinancialStory() {
           })}
         </div>
 
-        {/* Financial Milestones Timeline */}
+        {/* Financial Milestones Timeline -Dynamic */}
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-6">Financial Milestones</h3>
-
           <div className="relative">
-            {/* Timeline line */}
             <div className="absolute left-6 top-0 bottom-0 w-px bg-border"></div>
-
             <div className="space-y-6">
-              {milestones.map((milestone, index) => (
-                <motion.div
-                  key={milestone.title}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.2 }}
-                  className="relative flex items-start space-x-4"
-                  data-testid={`milestone-${milestone.title
-                    .toLowerCase()
-                    .replace(/\s/g, "-")}`}
-                >
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center relative z-10 ${
-                      milestone.completed ? "bg-primary" : "bg-muted"
-                    }`}
+              {(insights || []).map((insight, index) => {
+                const Icon = milestoneIcons[insight.agentType] || milestoneIcons.default;
+                return (
+                  <motion.div
+                    key={insight.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.2 }}
+                    className="relative flex items-start space-x-4"
+                    data-testid={`milestone-${insight.id}`}
                   >
-                    <milestone.icon
-                      className={`w-6 h-6 ${
-                        milestone.completed
-                          ? "text-primary-foreground"
-                          : "text-muted-foreground"
-                      }`}
-                    />
-                  </div>
-
-                  <div className="flex-1 pb-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4
-                        className={`font-semibold ${
-                          milestone.completed
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {milestone.title}
-                      </h4>
-                      <div className="text-xs text-muted-foreground">
-                        {milestone.date}
-                      </div>
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center relative z-10 bg-primary`}
+                    >
+                      <Icon className="w-6 h-6 text-primary-foreground" />
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {milestone.description}
-                    </p>
-
-                    {!milestone.completed && (
-                      <Button variant="outline" size="sm" className="mt-3">
-                        View Action Plan
-                      </Button>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+                    <div className="flex-1 pb-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-foreground">
+                          {insight.outputData.title || "AI Insight Received"}
+                        </h4>
+                        <div className="text-xs text-muted-foreground">
+                          {formatMilestoneDate(insight.timestamp || new Date())}
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {insight.outputData.description || "You completed a financial review."}
+                      </p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              {/* Add a default "journey started" milestone */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: (insights?.length || 0) * 0.2 }}
+                className="relative flex items-start space-x-4"
+              >
+                <div className="w-12 h-12 rounded-full flex items-center justify-center relative z-10 bg-muted">
+                  <Star className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div className="flex-1 pb-6">
+                  <h4 className="font-semibold text-muted-foreground">Started Your Financial Journey</h4>
+                  <p className="text-sm text-muted-foreground">
+                    You took the first step by setting up FinWise.
+                  </p>
+                </div>
+              </motion.div>
             </div>
           </div>
         </Card>
       </motion.div>
+
+      {/* 6. Render the modal */}
+      <GoalDetailModal
+        goal={selectedGoal}
+        onClose={() => setSelectedGoal(null)}
+      />
     </div>
   );
 }

@@ -2,8 +2,10 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const errorData = await res.json().catch(() => ({
+      message: res.statusText,
+    }));
+    throw new Error(errorData.message || `${res.status}: ${res.statusText}`);
   }
 }
 
@@ -12,7 +14,8 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined
 ): Promise<Response> {
-  const res = await fetch(url, {
+  // (Assuming your vite.config.ts proxies /api)
+  const res = await fetch(`/api${url}`, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -24,12 +27,18 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    
+    // This joins ['/api/financial-profiles', 'user123']
+    // into '/api/financial-profiles/user123'
+    const url = queryKey.join("/");
+
+    const res = await fetch(url, {
       credentials: "include",
     });
 
@@ -40,6 +49,7 @@ export const getQueryFn: <T>(options: {
     await throwIfResNotOk(res);
     return await res.json();
   };
+
 
 export const queryClient = new QueryClient({
   defaultOptions: {

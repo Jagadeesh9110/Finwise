@@ -5,7 +5,9 @@ import {
   processWhatIfScenario,
   getFinancialProfile,
   updateFinancialProfile,
-  getAgentOutputs
+  getAgentOutputs,
+  getAgentOutputById,
+  addInvestment
 } from "../controllers/aiController";
 
 const router = Router();
@@ -20,8 +22,10 @@ router.post("/scenarios/what-if", processWhatIfScenario);
 // Financial profile routes
 router.get("/financial-profiles/:userId", getFinancialProfile);
 router.put("/financial-profiles/:userId", updateFinancialProfile);
+router.post("/financial-profiles/:userId/investments", addInvestment);
 
 // Agent outputs
-router.get("/agent-outputs/:userId", getAgentOutputs);
+router.get("/agent-outputs/:id", getAgentOutputById);
+router.get("/agent-outputs/user/:userId", getAgentOutputs);
 
 export default router;

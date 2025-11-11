@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 import axios from "axios";
-import FinancialProfileModel from "../models/financialProfileModel";
+import FinancialProfileModel, { ITransaction } from "../models/financialProfileModel";
 import AgentOutputModel from "../models/agentOutputModel";
 import { IUserDocument } from "../models/userModel";
 import { v4 as uuidv4 } from "uuid";
+import mongoose from "mongoose";
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL || "http://localhost:8001";
 
@@ -41,7 +42,7 @@ export const processAICommand = async (req: Request, res: Response) => {
     }
 
     // Prepare request for Python AI service
-    const aiRequest = {
+  const aiRequest = {
       user_input: command,
       user_profile: {
         age: profile.age,
@@ -70,25 +71,72 @@ export const processAICommand = async (req: Request, res: Response) => {
     // Call Python AI service
     const response = await axios.post(`${PYTHON_API_URL}/api/agents/process`, aiRequest);
     
-    // Save AI output to database
+    const aiResponse = response.data;
+    
+    //  Extract and store complete agent output 
     const sessionId = uuidv4();
-    await AgentOutputModel.create({
+    
+    // Determine priority from response or calculate
+    const priority = aiResponse.priority || 
+                     aiResponse.detailed_analysis?.priority || 
+                     'medium';
+    
+    // Determine if actionable
+    const actionable = !!(aiResponse.actionType ||
+                          aiResponse.detailed_analysis?.actionType ||
+                          aiResponse.insights?.length > 0);
+    
+    // Create main agent output (the comprehensive plan)
+    const mainOutput = await AgentOutputModel.create({
       userId: user._id,
       sessionId,
       userInput: command,
-      agentType: "master",
-      outputData: response.data,
-      analysis_type: response.data.analysis_type,
-      agents_involved: response.data.agents_involved,
-      priority: "medium",
-      actionable: true
+      agentType: aiResponse.agent || "master",
+      outputData: {
+        response: aiResponse.final_output,
+        title: "Financial Analysis",
+        description: aiResponse.final_output?.substring(0, 200) || "Analysis complete",
+        actionType: aiResponse.actionType || "review",
+        agent: aiResponse.agent || "master",
+        insights: aiResponse.insights || []
+      },
+      analysis_type: aiResponse.analysis_type || "comprehensive",
+      agents_involved: aiResponse.agents_involved || ["master"],
+      priority,
+      actionable
     });
+
+    // Store individual insights as separate outputs
+    if (aiResponse.insights && Array.isArray(aiResponse.insights)) {
+      for (const insight of aiResponse.insights) {
+        await AgentOutputModel.create({
+          userId: user._id,
+          sessionId,
+          userInput: command,
+          agentType: insight.agent || "unknown",
+          outputData: {
+            title: insight.title,
+            description: insight.description,
+            actionType: insight.actionType,
+            agent: insight.agent
+          },
+          analysis_type: aiResponse.analysis_type || "comprehensive",
+          agents_involved: [insight.agent],
+          priority: insight.priority || priority,
+          actionable: true,
+          timestamp: new Date()
+        });
+      }
+    }
 
     res.json({
       success: true,
-      response: response.data.final_output,
-      analysis_type: response.data.analysis_type,
-      agents_involved: response.data.agents_involved
+      response: aiResponse.final_output,
+      analysis_type: aiResponse.analysis_type,
+      agents_involved: aiResponse.agents_involved,
+      actionType: aiResponse.actionType,
+      priority,
+      insights: aiResponse.insights
     });
 
   } catch (error: any) {
@@ -199,44 +247,116 @@ export const updateFinancialProfile = async (req: Request, res: Response) => {
   }
 };
 
+export const addInvestment = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { name, type, amount, date } = req.body;
+
+    const profile = await FinancialProfileModel.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const newTransaction: ITransaction = {
+      amount: Number(amount), // Store as a positive value
+      category: "Investment", 
+      description: name,
+      date: date ? new Date(date) : new Date(),
+      type: "investment", 
+    };
+
+    // Add the new transaction and deduct the amount from savings
+    profile.transactions.push(newTransaction);
+    profile.savings = (profile.savings || 0) - Number(amount);
+    
+    const updatedProfile = await profile.save();
+
+    res.status(201).json({ message: "Investment added successfully", profile: updatedProfile });
+
+  } catch (error: any) {
+    console.error("Error adding investment:", error);
+    res.status(500).json({ message: "Failed to add investment", error: error.message });
+  }
+};
+
+export const getAgentOutputById = async (req: Request, res: Response) => {
+  try {
+    const user = req.user as IUserDocument;
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid insight ID" });
+    }
+
+    const output = await AgentOutputModel.findById(id);
+
+    if (!output || output.userId.toString() !== user._id.toString()) {
+      return res.status(404).json({ message: "Insight not found" });
+    }
+    
+    const outputData = output.outputData || {};
+    const insight = {
+      id: output._id.toString(),
+      agentType: output.agentType,
+      agent: outputData.agent || output.agentType,
+      priority: output.priority || "medium",
+      actionable: output.actionable || false,
+      outputData: {
+        title: outputData.title || "Financial Analysis",
+        description: outputData.description || "Analysis completed",
+        response: outputData.response || outputData.description || "No further details available.", // <-- The full text
+        action: outputData.actionType || outputData.action,
+        actionType: outputData.actionType || outputData.action
+      },
+      timestamp: output.timestamp,
+      analysis_type: output.analysis_type
+    };
+
+    res.json(insight);
+
+  } catch (error: any) {
+    console.error("Error fetching single agent output:", error);
+    res.status(500).json({ message: "Failed to fetch agent output" });
+  }
+};
+
 export const getAgentOutputs = async (req: Request, res: Response) => {
   try {
     const user = req.user as IUserDocument;
-    
-    const outputs = await AgentOutputModel.find({ userId: user._id })
+    const { userId } = req.params; 
+
+    if (user._id.toString() !== userId) {
+         return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const outputs = await AgentOutputModel.find({ userId: userId })
       .sort({ timestamp: -1 })
-      .limit(10);
+      .limit(20);
 
-    // Transform outputs for frontend
-    const insights = outputs.map(output => {
-      // Handle different outputData structures
-      let title = "Financial Analysis";
-      let description = "Analysis completed";
-      let action = undefined;
-
-      if (output.outputData) {
-        // Check if outputData has direct title/description
-        if (typeof output.outputData === 'object') {
-          title = output.outputData.title || output.userInput?.substring(0, 50) || title;
-          description = output.outputData.description || 
-                       output.outputData.final_output?.substring(0, 200) || 
-                       description;
-          action = output.outputData.action;
-        }
-      }
-
-      return {
-        id: output._id.toString(),
-        agentType: output.agentType,
-        priority: output.priority || "medium",
-        actionable: output.actionable || false,
-        outputData: {
-          title,
-          description,
-          action: output.actionable ? (action || "review") : undefined
-        }
-      };
-    });
+    // This list correctly contains *summaries* (title, description)
+    const insights = outputs
+      .filter(output => output.outputData && (output.outputData.title || output.outputData.response)) // Ensure there is data
+      .map(output => {
+        const outputData = output.outputData || {};
+        
+        return {
+          id: output._id.toString(),
+          agentType: output.agentType,
+          agent: outputData.agent || output.agentType,
+          priority: output.priority || "medium",
+          actionable: output.actionable || false,
+          outputData: {
+            title: outputData.title || (outputData.response ? output.userInput : "Financial Insight"),
+            description: outputData.description || 
+                           outputData.response?.substring(0, 200) + "..." || 
+                           "Analysis completed",
+            action: outputData.actionType || outputData.action,
+            actionType: outputData.actionType || outputData.action
+          },
+          timestamp: output.timestamp,
+          analysis_type: output.analysis_type
+        };
+      });
 
     res.json(insights);
 

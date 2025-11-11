@@ -6,11 +6,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { IFinancialProfile, IFinancialGoal } from "@/types";
 
 export function GoalProgress() {
-  const { user } = useAuth();
+ const { user } = useAuth();
   const userId = user?.id || localStorage.getItem("userId");
   
   const { data: profile } = useQuery<IFinancialProfile>({
-    queryKey: [`/api/financial-profiles/${userId}`],
+    queryKey: [`/api/financial-profiles`, userId],
     enabled: !!userId,
   });
 

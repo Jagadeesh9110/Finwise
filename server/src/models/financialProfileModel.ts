@@ -21,7 +21,7 @@ export interface ITransaction {
   category: string;
   description: string;
   date: Date;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'investment';
 }
 
 export interface IFinancialProfile {
@@ -55,6 +55,7 @@ const financialProfileSchema = new Schema<IFinancialProfileDocument>(
       deadline: String,
       priority: Number
     }],
+    
     debts: [{
       name: String,
       balance: Number,
@@ -62,12 +63,14 @@ const financialProfileSchema = new Schema<IFinancialProfileDocument>(
       minimum_payment: Number,
       type: String
     }],
+
+
     transactions: [{
       amount: Number,
       category: String,
       description: String,
       date: Date,
-      type: { type: String, enum: ['income', 'expense'] }
+      type: { type: String, enum: ['income', 'expense', 'investment'] }
     }],
     risk_tolerance: { 
       type: String, 

@@ -5,6 +5,13 @@ from dotenv import load_dotenv
 # Load environment variables first
 load_dotenv()
 
+# Initialize Windows-compatible color output if available
+try:
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+except Exception:
+    pass
+
 # Import settings and validate API key early
 from config import settings
 try:
@@ -18,6 +25,12 @@ except ValueError as e:
 from graph.workflow import create_financial_workflow
 from graph.state import UserProfile, FinancialGoal
 from utils import setup_logging, ColorFormatter
+
+# === ADDED: Imports for the router ===
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+# === END ADDED ===
 
 def create_sample_user_profile() -> UserProfile:
     """Create a sample user profile for demonstration"""
@@ -76,6 +89,33 @@ def main():
     # Setup logging
     logger = setup_logging()
     
+    # === ADDED: Setup for the simple router chain ===
+    try:
+        # === MODIFIED: Pass the API key to the router's LLM ===
+        router_llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash", 
+            temperature=0, 
+            google_api_key=settings.GEMINI_API_KEY
+        )
+        # === END MODIFIED ===
+        
+        router_prompt = PromptTemplate.from_template(
+            """Your job is to classify a user's question as either 'user_specific' or 'general'.
+'user_specific' questions require personal context (like 'my income', 'my goals', 'my budget', 'should I...', 'analyze my...').
+'general' questions are about financial concepts (like 'what is inflation?', 'explain mutual funds', 'how do stocks work?').
+
+Respond with ONLY 'user_specific' or 'general'.
+
+Question: {question}"""
+        )
+        router_chain = router_prompt | router_llm | StrOutputParser()
+        print(ColorFormatter.info("Query router initialized..."))
+    except Exception as e:
+        print(ColorFormatter.error(f"❌ Failed to initialize query router: {str(e)}"))
+        logger.error(f"Router initialization error: {str(e)}")
+        return
+    # === END ADDED ===
+    
     print(ColorFormatter.header("🤖 FinWise AI Financial Assistant"))
     print("=" * 60)
     
@@ -113,11 +153,30 @@ def main():
             if not user_input.strip():
                 continue
                 
-            print(ColorFormatter.info("\n🧠 Analyzing your request with AI agents..."))
+            # === ADDED: Routing logic to decide which context to send ===
+            profile_data = None
+            try:
+                print(ColorFormatter.info("\n🧠 Classifying your request..."))
+                request_type = router_chain.invoke({"question": user_input})
+                
+                if "user_specific" in request_type.lower():
+                    print(ColorFormatter.info("...Analyzing your request with your personal profile."))
+                    profile_data = user_profile.model_dump()
+                else:
+                    print(ColorFormatter.info("...Analyzing your general finance question."))
+                    # profile_data remains None, as intended
+                    
+            except Exception as e:
+                print(ColorFormatter.error(f"❌ Error during request classification: {str(e)}"))
+                print(ColorFormatter.warning("Defaulting to user-specific analysis."))
+                profile_data = user_profile.model_dump()
+            # === END ADDED ===
+                
+            print(ColorFormatter.info("🧠 Processing with AI agents..."))
             
             try:
-                # Process request through multi-agent system
-                result = workflow.process_request(user_input, user_profile.model_dump())
+                # === MODIFIED: Pass the (potentially None) profile_data ===
+                result = workflow.process_request(user_input, profile_data)
                 
                 final_output = result.get("final_output", "I apologize, but I couldn't generate a response.")
                 

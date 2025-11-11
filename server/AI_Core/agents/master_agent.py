@@ -89,7 +89,7 @@ class MasterFinancialStrategistAgent:
             logger.error(f"Error determining analysis type: {str(e)}")
             return self._fallback_analysis_type(user_input)
     
-    def synthesize_plan(self, user_profile: Dict[str, Any], analyses: Dict[str, Any]) -> str:
+    def synthesize_plan(self, user_profile: Dict[str, Any], analyses: Dict[str, Any]) -> Dict[str, Any]:
         """Synthesize multiple agent analyses into a comprehensive, actionable financial plan"""
         logger.info("Master agent synthesizing comprehensive financial plan")
         
@@ -97,7 +97,11 @@ class MasterFinancialStrategistAgent:
         valid_analyses = {k: v for k, v in analyses.items() if v is not None and not v.get('error')}
         
         if not valid_analyses:
-            return "I apologize, but I couldn't gather enough data to create a comprehensive financial plan. Please try asking more specific questions about your finances."
+            return {
+                "response": "I apologize, but I couldn't gather enough data to create a comprehensive financial plan.",
+                "agent": "master",
+                "actionType": None
+            }
         
         synthesis_data = self._prepare_synthesis_data(user_profile, valid_analyses)
         
@@ -162,16 +166,111 @@ class MasterFinancialStrategistAgent:
             
             synthesized_plan = self._format_final_output(response.content, valid_analyses)
             logger.info("Successfully synthesized comprehensive financial plan")
-            return synthesized_plan
+            
+            # === MODIFIED: Return structured response with metadata ===
+            return {
+                "response": synthesized_plan,
+                "agent": "master",
+                "actionType": self._determine_action_type(valid_analyses),
+                "priority": self._determine_priority(valid_analyses),
+                "insights": self._extract_key_insights(valid_analyses)
+            }
             
         except Exception as e:
             logger.error(f"Error synthesizing plan: {str(e)}")
-            return self._create_fallback_plan(valid_analyses)
+            return {
+                "response": self._create_fallback_plan(valid_analyses),
+                "agent": "master",
+                "actionType": "review",
+                "priority": "medium"
+            }
+
+    # === ADDED HELPER METHODS ===
     
+    def _determine_action_type(self, analyses: Dict[str, Any]) -> str:
+        """Determine the primary action type based on analyses"""
+        if "debt_optimization" in analyses:
+            return "manage_debt"
+        elif "investment_advice" in analyses:
+            return "invest"
+        elif "budget_plan" in analyses:
+            return "review_budget"
+        elif "income_analysis" in analyses:
+            return "optimize_spending"
+        else:
+            return "review"
+
+    def _determine_priority(self, analyses: Dict[str, Any]) -> str:
+        """Determine priority based on financial health indicators"""
+        if "debt_optimization" in analyses:
+            debt_data = analyses["debt_optimization"]
+            debt_ratio = debt_data.get("current_debt_situation", {}).get("debt_to_income_ratio", 0)
+            if debt_ratio > 40:
+                return "high"
+        
+        if "income_analysis" in analyses:
+            income_data = analyses["income_analysis"]
+            savings_rate = income_data.get("summary_metrics", {}).get("savings_rate", 0)
+            if savings_rate < 0:
+                return "high"
+            elif savings_rate < 10:
+                return "medium"
+        
+        return "low"
+
+    def _extract_key_insights(self, analyses: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Extract actionable insights from each analysis"""
+        insights = []
+        
+        for analysis_type, analysis_data in analyses.items():
+            if analysis_data and not analysis_data.get('error'):
+                if analysis_type == "income_analysis":
+                    net_flow = analysis_data.get('summary_metrics', {}).get('net_cash_flow', 0)
+                    insights.append({
+                        "agent": "income_expense_analyzer",
+                        "title": "Cash Flow Analysis",
+                        "description": f"Monthly net cash flow: ${net_flow:,.2f}",
+                        "actionType": "optimize_spending" if net_flow < 0 else "increase_savings"
+                    })
+                
+                elif analysis_type == "budget_plan":
+                    savings_rate = analysis_data.get('savings_rate', 0)
+                    insights.append({
+                        "agent": "budget_planner",
+                        "title": "Budget Optimization",
+                        "description": f"Current savings rate: {savings_rate:.1f}%",
+                        "actionType": "review_budget"
+                    })
+                
+                elif analysis_type == "investment_advice":
+                    risk_profile = analysis_data.get('risk_profile', 'moderate')
+                    insights.append({
+                        "agent": "investment_advisor",
+                        "title": "Investment Strategy",
+                        "description": f"Recommended {risk_profile} portfolio",
+                        "actionType": "invest"
+                    })
+                
+                elif analysis_type == "debt_optimization":
+                    strategy = analysis_data.get('recommended_strategy', {}).get('recommended_method', 'snowball')
+                    insights.append({
+                        "agent": "debt_optimizer",
+                        "title": "Debt Management",
+                        "description": f"Use {strategy} method for optimal repayment",
+                        "actionType": "manage_debt"
+                    })
+        
+        return insights
+
+    # === END ADDED HELPER METHODS ===
+
     def _extract_financial_context(self, user_profile: Dict[str, Any]) -> str:
         """Extract and format key financial context from user profile"""
         context_parts = []
         
+        if not user_profile:
+            return "No personal context provided."
+
         # Basic demographics
         if user_profile.get('age'):
             context_parts.append(f"- Age: {user_profile['age']}")
@@ -293,6 +392,9 @@ class MasterFinancialStrategistAgent:
     
     def _format_user_profile_for_synthesis(self, user_profile: Dict[str, Any]) -> str:
         """Format user profile for synthesis prompt"""
+        if not user_profile:
+            return "No user profile available."
+            
         lines = []
         
         # Basic info
@@ -388,12 +490,13 @@ class MasterFinancialStrategistAgent:
                 metrics.append(f"Monthly Savings Target: ${savings_target:,.2f}")
         
         # Debt metrics
-        debts = user_profile.get('debts', [])
-        if debts and "debt_optimization" in analyses:
-            debt_data = analyses["debt_optimization"]
-            total_debt = debt_data.get('current_debt_situation', {}).get('total_debt', 0)
-            if total_debt:
-                metrics.append(f"Total Debt: ${total_debt:,.2f}")
+        if user_profile:
+            debts = user_profile.get('debts', [])
+            if debts and "debt_optimization" in analyses:
+                debt_data = analyses["debt_optimization"]
+                total_debt = debt_data.get('current_debt_situation', {}).get('total_debt', 0)
+                if total_debt:
+                    metrics.append(f"Total Debt: ${total_debt:,.2f}")
         
         return "\n".join(metrics) if metrics else "Key metrics being calculated..."
     

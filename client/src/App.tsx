@@ -13,6 +13,7 @@ import Dashboard from "@/pages/Dashboard";
 import Scenarios from "@/pages/Scenarios";
 import FinancialStory from "@/pages/FinancialStory";
 import Portfolio from "@/pages/Portfolio";
+import AllInsights from "@/pages/AllInsights"; 
 import NotFound from "@/pages/NotFound";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -22,11 +23,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+
+function AppAuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex bg-background">
       <Sidebar />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+      <div className="flex-1 flex flex-col overflow-auto">
+        {/* The child component (e.g., Dashboard) will render here */}
+        {children}
+      </div>
     </div>
   );
 }
@@ -40,11 +45,13 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/verify-email" component={VerifyEmail} />
 
-      {/* Protected Routes - Only accessible to logged-in users */}
-      <Route path="/dashboard"><ProtectedRoute><AuthenticatedLayout><Dashboard /></AuthenticatedLayout></ProtectedRoute></Route>
-      <Route path="/scenarios"><ProtectedRoute><AuthenticatedLayout><Scenarios /></AuthenticatedLayout></ProtectedRoute></Route>
-      <Route path="/financial-story"><ProtectedRoute><AuthenticatedLayout><FinancialStory /></AuthenticatedLayout></ProtectedRoute></Route>
-      <Route path="/portfolio"><ProtectedRoute><AuthenticatedLayout><Portfolio /></AuthenticatedLayout></ProtectedRoute></Route>
+      {/* Protected Routes - Accessible only to authenticated users */}
+      <Route path="/dashboard"><ProtectedRoute><AppAuthenticatedLayout><Dashboard /></AppAuthenticatedLayout></ProtectedRoute></Route>
+      <Route path="/scenarios"><ProtectedRoute><AppAuthenticatedLayout><Scenarios /></AppAuthenticatedLayout></ProtectedRoute></Route>
+      <Route path="/financial-story"><ProtectedRoute><AppAuthenticatedLayout><FinancialStory /></AppAuthenticatedLayout></ProtectedRoute></Route>
+      <Route path="/portfolio"><ProtectedRoute><AppAuthenticatedLayout><Portfolio /></AppAuthenticatedLayout></ProtectedRoute></Route>
+      
+      <Route path="/all-insights"><ProtectedRoute><AppAuthenticatedLayout><AllInsights /></AppAuthenticatedLayout></ProtectedRoute></Route>
 
       {/* Default redirect logic */}
       <Route path="/">{user ? <Redirect to="/dashboard" /> : <Redirect to="/login" />}</Route>
@@ -70,4 +77,3 @@ function App() {
 }
 
 export default App;
-

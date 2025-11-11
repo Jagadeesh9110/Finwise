@@ -324,7 +324,9 @@ class IncomeExpenseAnalyzerAgent:
         """Create a summary of key metrics for quick reference"""
         
         return {
+            # Maintain both keys for compatibility with consumers expecting either name
             "monthly_net_flow": metrics.get('net_cash_flow', 0),
+            "net_cash_flow": metrics.get('net_cash_flow', 0),
             "savings_rate": metrics.get('savings_rate', 0),
             "financial_health": "Excellent" if metrics.get('savings_rate', 0) >= 15 else "Good" if metrics.get('savings_rate', 0) >= 5 else "Needs Improvement",
             "key_strengths": len(patterns.get('strengths', [])),

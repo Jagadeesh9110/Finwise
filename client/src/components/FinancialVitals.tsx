@@ -19,7 +19,7 @@ export function FinancialVitals() {
   const userId = user?.id || localStorage.getItem("userId");
 
   const { data: profile } = useQuery<IFinancialProfile>({
-    queryKey: [`/api/financial-profiles/${userId}`],
+    queryKey: [`/api/financial-profiles`, userId],
     enabled: !!userId,
   });
 
