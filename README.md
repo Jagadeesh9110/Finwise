@@ -41,9 +41,24 @@ The core of FinWise is a sophisticated **multi-agent AI system**. Instead of a s
 
 ## 🏗️ Project Architecture
 
-FinWise is built on a modern, decoupled 3-tier architecture. This design ensures separation of concerns, scalability, and security. The frontend (client), backend (server), and AI (AI Core) operate as independent services.
+FinWise follows a **modular 3-tier architecture** that ensures scalability, maintainability, and security.  
+Each layer — **Frontend**, **Backend**, and **AI Core** — is independently deployable and communicates through secure APIs.
 
-+--------------------------+ +--------------------------+ +--------------------------+ | Frontend Client | | Backend Server | | AI Core API | | (React + TypeScript) | | (Node.js + Express) | | (Python + FastAPI/LangGraph) | | (Vite @ localhost:5173) | | (Express @ localhost:3000) | | (FastAPI @ localhost:8001) | +--------------------------+ +--------------------------+ +--------------------------+ | | | | <--- (UI / State) ---> | | | | | | <-- API Call (React Query) --> | | | (e.g., /api/agent-outputs/user/123) | | | | | (User) <-> | | <--- (Auth, DB Ops) ---> [MongoDB] | | | | | | | | <-- (AI Request) ------> | | | (w/ User Profile) | | | | | | <-- (Structured JSON) <--- | | | (Full AI Plan + Metadata) | | | | | <--- (Serves JSON Data) <----- | | | | |
+```text
+┌───────────────────────────┐      ┌───────────────────────────┐      ┌────────────────────────────┐
+│      Frontend Client      │      │       Backend Server      │      │         AI Core API        │
+│   (React + TypeScript)    │      │   (Node.js + Express)     │      │ (Python + FastAPI/LangGraph)│
+│   (Vite @ localhost:5173) │      │  (Express @ localhost:3000)│     │   (FastAPI @ localhost:8001)│
+└────────────┬──────────────┘      └────────────┬──────────────┘      └────────────┬───────────────┘
+             │                                   │                                 │
+             │  <─── UI / State Sync ───>        │                                 │
+             │  <─── API Calls (React Query) ───>│                                 │
+             │          (e.g. /api/agent-outputs/user/:id)                         │
+             │                                   │ <── Auth / DB Ops ───> [MongoDB]│
+             │                                   │ <── AI Request (user_profile) ─>│
+             │  <── Structured JSON ─────────────│ <── AI Plan + Metadata ─────────│
+             │  <── Final Response (Serves JSON Data) ─────────────────────────────│
+
 
 ### 1. Frontend (Client)
 
