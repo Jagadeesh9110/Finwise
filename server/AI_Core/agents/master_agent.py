@@ -44,7 +44,6 @@ class MasterFinancialStrategistAgent:
         """Intelligently determine which analysis type is needed based on user input"""
         logger.info(f"Master agent analyzing request: {user_input[:100]}...")
         
-        # Extract key financial context from user profile
         financial_context = self._extract_financial_context(user_profile)
         
         prompt = f"""
@@ -63,13 +62,6 @@ class MasterFinancialStrategistAgent:
         - financial_education: For explaining concepts, "why" questions, learning, terminology
         - comprehensive: For general financial planning or when multiple areas need analysis
         
-        Consider these keywords and intent:
-        - Income/expense: "spending", "cash flow", "where my money goes", "expense tracking"
-        - Budget: "budget", "allocation", "savings rate", "spending plan"
-        - Investment: "invest", "portfolio", "stocks", "retirement", "returns"
-        - Debt: "debt", "loan", "repay", "credit card", "interest"
-        - Education: "explain", "what is", "how does", "why should"
-        
         Return ONLY the analysis type as a single word from the available options.
         """
         
@@ -82,7 +74,6 @@ class MasterFinancialStrategistAgent:
             analysis_type_str = response.content.strip().lower()
             logger.info(f"LLM determined analysis type: {analysis_type_str}")
             
-            # Map to enum with intelligent fallbacks
             return self._map_to_analysis_type(analysis_type_str, user_input)
             
         except Exception as e:
@@ -93,7 +84,6 @@ class MasterFinancialStrategistAgent:
         """Synthesize multiple agent analyses into a comprehensive, actionable financial plan"""
         logger.info("Master agent synthesizing comprehensive financial plan")
         
-        # Filter out None analyses and prepare synthesis data
         valid_analyses = {k: v for k, v in analyses.items() if v is not None and not v.get('error')}
         
         if not valid_analyses:
@@ -120,35 +110,29 @@ class MasterFinancialStrategistAgent:
         Create a cohesive, personalized financial plan that:
         
         1. EXECUTIVE SUMMARY: Brief overview of current financial health and key recommendations
-        
         2. PRIORITY ACTIONS (What to do now):
            - Immediate steps (next 30 days)
            - Quick wins that provide immediate benefit
            - Critical fixes for any financial risks
-        
         3. STRATEGIC RECOMMENDATIONS (What to do next):
            - Budget optimization strategies
            - Debt management approach
            - Investment strategy alignment
            - Savings acceleration tactics
-        
         4. IMPLEMENTATION ROADMAP:
            - Month 1-3: Foundation building
            - Month 4-6: Debt reduction and savings growth
            - Month 7-12: Investment optimization
            - Year 2+: Long-term wealth building
-        
         5. RISK MANAGEMENT:
            - Emergency fund status and recommendations
            - Insurance considerations
            - Market risk exposure
            - Liquidity needs
-        
         6. PROGRESS TRACKING:
            - Key metrics to monitor monthly
            - Milestone celebrations
            - Warning signs to watch for
-        
         7. PERSONALIZED MOTIVATION:
            - Connect recommendations to user's specific goals
            - Highlight the emotional benefits of financial security
@@ -156,6 +140,7 @@ class MasterFinancialStrategistAgent:
         
         Make this plan SPECIFIC, ACTIONABLE, and PERSONALIZED. Use concrete numbers and timelines.
         Focus on practical steps the user can implement immediately.
+        Use Indian Rupees (₹) for all currency values.
         """
         
         try:
@@ -167,7 +152,6 @@ class MasterFinancialStrategistAgent:
             synthesized_plan = self._format_final_output(response.content, valid_analyses)
             logger.info("Successfully synthesized comprehensive financial plan")
             
-            # === MODIFIED: Return structured response with metadata ===
             return {
                 "response": synthesized_plan,
                 "agent": "master",
@@ -185,10 +169,8 @@ class MasterFinancialStrategistAgent:
                 "priority": "medium"
             }
 
-    # === ADDED HELPER METHODS ===
-    
     def _determine_action_type(self, analyses: Dict[str, Any]) -> str:
-        """Determine the primary action type based on analyses"""
+        """Determine the primary action type based on available analyses"""
         if "debt_optimization" in analyses:
             return "manage_debt"
         elif "investment_advice" in analyses:
@@ -201,7 +183,7 @@ class MasterFinancialStrategistAgent:
             return "review"
 
     def _determine_priority(self, analyses: Dict[str, Any]) -> str:
-        """Determine priority based on financial health indicators"""
+        """Determine priority level based on financial health indicators"""
         if "debt_optimization" in analyses:
             debt_data = analyses["debt_optimization"]
             debt_ratio = debt_data.get("current_debt_situation", {}).get("debt_to_income_ratio", 0)
@@ -218,51 +200,81 @@ class MasterFinancialStrategistAgent:
         
         return "low"
 
-    def _extract_key_insights(self, analyses: Dict[str, Any]) -> List[Dict[str, str]]:
+    def _extract_key_insights(self, analyses: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract actionable insights from each analysis"""
         insights = []
         
         for analysis_type, analysis_data in analyses.items():
-            if analysis_data and not analysis_data.get('error'):
+            if not analysis_data or analysis_data.get('error'):
+                continue
+                
+            try:
+                insight = None
+                
                 if analysis_type == "income_analysis":
-                    net_flow = analysis_data.get('summary_metrics', {}).get('net_cash_flow', 0)
-                    insights.append({
+                    summary_metrics = analysis_data.get('summary_metrics', {})
+                    if not isinstance(summary_metrics, dict):
+                        continue
+                        
+                    net_flow = summary_metrics.get('net_cash_flow', 0)
+                    if not isinstance(net_flow, (int, float)):
+                        net_flow = 0
+                    
+                    insight = {
                         "agent": "income_expense_analyzer",
                         "title": "Cash Flow Analysis",
-                        "description": f"Monthly net cash flow: ${net_flow:,.2f}",
+                        "description": f"Monthly net cash flow: ₹{net_flow:,.2f}",
                         "actionType": "optimize_spending" if net_flow < 0 else "increase_savings"
-                    })
+                    }
                 
                 elif analysis_type == "budget_plan":
                     savings_rate = analysis_data.get('savings_rate', 0)
-                    insights.append({
+                    if not isinstance(savings_rate, (int, float)):
+                        savings_rate = 0
+                    
+                    insight = {
                         "agent": "budget_planner",
                         "title": "Budget Optimization",
                         "description": f"Current savings rate: {savings_rate:.1f}%",
                         "actionType": "review_budget"
-                    })
+                    }
                 
                 elif analysis_type == "investment_advice":
                     risk_profile = analysis_data.get('risk_profile', 'moderate')
-                    insights.append({
+                    if not isinstance(risk_profile, str):
+                        risk_profile = 'moderate'
+                    
+                    insight = {
                         "agent": "investment_advisor",
                         "title": "Investment Strategy",
                         "description": f"Recommended {risk_profile} portfolio",
                         "actionType": "invest"
-                    })
+                    }
                 
                 elif analysis_type == "debt_optimization":
-                    strategy = analysis_data.get('recommended_strategy', {}).get('recommended_method', 'snowball')
-                    insights.append({
+                    recommended_strategy = analysis_data.get('recommended_strategy', {})
+                    if not isinstance(recommended_strategy, dict):
+                        continue
+                        
+                    strategy = recommended_strategy.get('recommended_method', 'snowball')
+                    if not isinstance(strategy, str):
+                        strategy = 'snowball'
+                    
+                    insight = {
                         "agent": "debt_optimizer",
                         "title": "Debt Management",
                         "description": f"Use {strategy} method for optimal repayment",
                         "actionType": "manage_debt"
-                    })
+                    }
+                
+                if insight:
+                    insights.append(insight)
+                    
+            except Exception as e:
+                logger.warning(f"Error extracting insight from {analysis_type}: {str(e)}")
+                continue
         
         return insights
-
-    # === END ADDED HELPER METHODS ===
 
     def _extract_financial_context(self, user_profile: Dict[str, Any]) -> str:
         """Extract and format key financial context from user profile"""
@@ -278,19 +290,19 @@ class MasterFinancialStrategistAgent:
         # Financial situation
         if user_profile.get('annual_income'):
             monthly_income = user_profile['annual_income'] / 12
-            context_parts.append(f"- Monthly Income: ${monthly_income:,.2f}")
+            context_parts.append(f"- Monthly Income: ₹{monthly_income:,.2f}")
         
         if user_profile.get('monthly_expenses'):
-            context_parts.append(f"- Monthly Expenses: ${user_profile['monthly_expenses']:,.2f}")
+            context_parts.append(f"- Monthly Expenses: ₹{user_profile['monthly_expenses']:,.2f}")
         
         if user_profile.get('savings'):
-            context_parts.append(f"- Current Savings: ${user_profile['savings']:,.2f}")
+            context_parts.append(f"- Current Savings: ₹{user_profile['savings']:,.2f}")
         
         # Debt situation
         debts = user_profile.get('debts', [])
         if debts:
             total_debt = sum(debt.get('balance', 0) for debt in debts)
-            context_parts.append(f"- Total Debt: ${total_debt:,.2f} across {len(debts)} accounts")
+            context_parts.append(f"- Total Debt: ₹{total_debt:,.2f} across {len(debts)} accounts")
         
         # Goals
         goals = user_profile.get('financial_goals', [])
@@ -406,22 +418,22 @@ class MasterFinancialStrategistAgent:
         expenses = user_profile.get('monthly_expenses', 0) * 12
         savings = user_profile.get('savings', 0)
         
-        lines.append(f"Annual Income: ${income:,.2f}")
-        lines.append(f"Annual Expenses: ${expenses:,.2f}")
-        lines.append(f"Current Savings: ${savings:,.2f}")
+        lines.append(f"Annual Income: ₹{income:,.2f}")
+        lines.append(f"Annual Expenses: ₹{expenses:,.2f}")
+        lines.append(f"Current Savings: ₹{savings:,.2f}")
         
         # Debt summary
         debts = user_profile.get('debts', [])
         if debts:
             total_debt = sum(debt.get('balance', 0) for debt in debts)
-            lines.append(f"Total Debt: ${total_debt:,.2f}")
+            lines.append(f"Total Debt: ₹{total_debt:,.2f}")
         
         # Goals
         goals = user_profile.get('financial_goals', [])
         if goals:
             goal_lines = []
             for goal in goals:
-                goal_lines.append(f"  - {goal.get('name', 'Goal')}: ${goal.get('target', 0):,.2f} in {goal.get('timeline_months', 0)} months")
+                goal_lines.append(f"  - {goal.get('name', 'Goal')}: ₹{goal.get('target', 0):,.2f} in {goal.get('timeline_months', 0)} months")
             lines.append("Financial Goals:\n" + "\n".join(goal_lines))
         
         return "\n".join(lines)
@@ -444,11 +456,11 @@ class MasterFinancialStrategistAgent:
         try:
             if analysis_type == "income_analysis":
                 net_cash_flow = analysis_data.get('summary_metrics', {}).get('net_cash_flow', 0)
-                return f"Net cash flow: ${net_cash_flow:,.2f} monthly"
+                return f"Net cash flow: ₹{net_cash_flow:,.2f} monthly"
             
             elif analysis_type == "budget_plan":
                 savings_target = analysis_data.get('savings_target', 0)
-                return f"Recommended savings: ${savings_target:,.2f} monthly"
+                return f"Recommended savings: ₹{savings_target:,.2f} monthly"
             
             elif analysis_type == "investment_advice":
                 risk_profile = analysis_data.get('risk_profile', 'moderate')
@@ -478,7 +490,7 @@ class MasterFinancialStrategistAgent:
             savings_rate = income_data.get('summary_metrics', {}).get('savings_rate', 0)
             
             if net_cash_flow:
-                metrics.append(f"Monthly Net Cash Flow: ${net_cash_flow:,.2f}")
+                metrics.append(f"Monthly Net Cash Flow: ₹{net_cash_flow:,.2f}")
             if savings_rate:
                 metrics.append(f"Savings Rate: {savings_rate:.1f}%")
         
@@ -487,7 +499,7 @@ class MasterFinancialStrategistAgent:
             budget_data = analyses["budget_plan"]
             savings_target = budget_data.get('savings_target', 0)
             if savings_target:
-                metrics.append(f"Monthly Savings Target: ${savings_target:,.2f}")
+                metrics.append(f"Monthly Savings Target: ₹{savings_target:,.2f}")
         
         # Debt metrics
         if user_profile:
@@ -496,7 +508,7 @@ class MasterFinancialStrategistAgent:
                 debt_data = analyses["debt_optimization"]
                 total_debt = debt_data.get('current_debt_situation', {}).get('total_debt', 0)
                 if total_debt:
-                    metrics.append(f"Total Debt: ${total_debt:,.2f}")
+                    metrics.append(f"Total Debt: ₹{total_debt:,.2f}")
         
         return "\n".join(metrics) if metrics else "Key metrics being calculated..."
     
@@ -532,14 +544,14 @@ class MasterFinancialStrategistAgent:
                     plan_parts.append("\n💸 INCOME & EXPENSES:")
                     net_flow = analysis_data.get('summary_metrics', {}).get('net_cash_flow', 0)
                     if net_flow > 0:
-                        plan_parts.append(f"• You're saving ${net_flow:,.2f} monthly - great job!")
+                        plan_parts.append(f"• You're saving ₹{net_flow:,.2f} monthly - great job!")
                     else:
-                        plan_parts.append(f"• You're overspending by ${abs(net_flow):,.2f} monthly - let's fix this")
+                        plan_parts.append(f"• You're overspending by ₹{abs(net_flow):,.2f} monthly - let's fix this")
                 
                 elif analysis_type == "budget_plan":
                     plan_parts.append("\n📊 BUDGET PLANNING:")
                     savings_target = analysis_data.get('savings_target', 0)
-                    plan_parts.append(f"• Target monthly savings: ${savings_target:,.2f}")
+                    plan_parts.append(f"• Target monthly savings: ₹{savings_target:,.2f}")
                 
                 elif analysis_type == "investment_advice":
                     plan_parts.append("\n📈 INVESTMENT STRATEGY:")

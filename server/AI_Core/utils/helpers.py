@@ -1,19 +1,34 @@
 import logging
 import json
+import sys
+import codecs
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 import re
 
 def setup_logging(level: str = "INFO") -> logging.Logger:
-    """Setup application logging"""
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler('finwise.log')
-        ]
-    )
+    """Setup application logging with UTF-8 encoding for Windows"""
+    
+    # Create UTF-8 handler for console
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(level)
+    
+    # Create UTF-8 handler for file
+    file_handler = logging.FileHandler('finwise.log', encoding='utf-8')
+    file_handler.setLevel(level)
+    
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    root_logger.handlers = []  # Clear existing handlers
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)
+    
     return logging.getLogger(__name__)
 
 def validate_email(email: str) -> bool:
@@ -22,8 +37,8 @@ def validate_email(email: str) -> bool:
     return re.match(pattern, email) is not None
 
 def format_currency(amount: float) -> str:
-    """Format currency with proper formatting"""
-    return f"${amount:,.2f}"
+    """Format currency with proper formatting (Indian Rupees)"""
+    return f"₹{amount:,.2f}"
 
 def parse_financial_input(text: str) -> Dict[str, Any]:
     """Parse financial information from user input"""

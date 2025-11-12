@@ -48,6 +48,24 @@ app.add_middleware(
 # Initialize workflow globally
 workflow = None
 
+
+def _simplify_for_json(obj: Any) -> Any:
+    """Recursively simplify objects for JSON serialization"""
+    if obj is None:
+        return None
+    elif isinstance(obj, (str, int, float, bool)):
+        return obj
+    elif isinstance(obj, dict):
+        return {k: _simplify_for_json(v) for k, v in obj.items() if v is not None}
+    elif isinstance(obj, (list, tuple)):
+        return [_simplify_for_json(item) for item in obj]
+    elif hasattr(obj, 'model_dump'):
+        return _simplify_for_json(obj.model_dump())
+    elif hasattr(obj, '__dict__'):
+        return _simplify_for_json(obj.__dict__)
+    else:
+        return str(obj)
+
 # Request/Response Models
 class FinancialGoalRequest(BaseModel):
     name: str
@@ -108,8 +126,7 @@ async def process_financial_request(request: ProcessRequest):
     try:
         logger.info(f"Processing request: {request.user_input[:100]}...")
         
-        # Convert Pydantic models to dicts
-        user_profile_dict = request.user_profile.dict() if request.user_profile else None
+        user_profile_dict = request.user_profile.model_dump() if request.user_profile else None
         
         profile_instance = None
         if user_profile_dict:
@@ -142,20 +159,33 @@ async def process_financial_request(request: ProcessRequest):
 
         # Process through workflow
         result = workflow.process_request(request.user_input, profile_data_for_workflow)
-        
-        # === MODIFIED: Structure response with complete metadata ===
         final_output = result.get("final_output", "")
         
-        # Determine if final_output is a dict (from master agent) or string (from educator)
         if isinstance(final_output, dict):
-            response_text = final_output.get("response", str(final_output))
+            response_text = final_output.get("response", "")
+            if not isinstance(response_text, str):
+                response_text = str(final_output)
+            
             agent = final_output.get("agent", "master")
             action_type = final_output.get("actionType")
             priority = final_output.get("priority", "medium")
-            insights = final_output.get("insights", [])
+            
+            #  Ensure insights is always a clean list of dicts
+            raw_insights = final_output.get("insights", [])
+            insights = []
+            if isinstance(raw_insights, list):
+                for item in raw_insights:
+                    if isinstance(item, dict):
+                        clean_insight = {
+                            "agent": str(item.get("agent", "unknown")),
+                            "title": str(item.get("title", "Insight")),
+                            "description": str(item.get("description", "")),
+                            "actionType": str(item.get("actionType", "review"))
+                        }
+                        insights.append(clean_insight)
         else:
-            # This handles the FinancialEducator path
-            response_text = final_output
+            # Handles FinancialEducator path
+            response_text = str(final_output) if final_output else ""
             agent = "financial_educator"
             action_type = "start_learning"
             priority = "medium"
@@ -177,42 +207,44 @@ async def process_financial_request(request: ProcessRequest):
         if not agents_involved and agent:
             agents_involved = [agent]
         elif not agents_involved:
-             agents_involved = ["master"]
-
+            agents_involved = ["master"]
+        
+        # Simplify detailed analysis for JSON serialization
+        detailed_analysis = {}
+        for key in ["income_analysis", "budget_plan", "investment_advice", "debt_optimization", "financial_education"]:
+            if result.get(key):
+                try:
+                    simplified = _simplify_for_json(result[key])
+                    detailed_analysis[key] = simplified
+                except Exception as e:
+                    logger.warning(f"Error simplifying {key}: {str(e)}")
+                    detailed_analysis[key] = {"error": "Serialization failed"}
         
         response = {
             "success": True,
-            "final_output": response_text,
-            "agent": agent,
-            "actionType": action_type,
-            "priority": priority,
+            "final_output": str(response_text),
+            "agent": str(agent),
+            "actionType": str(action_type) if action_type else None,
+            "priority": str(priority),
             "insights": insights,
-            "analysis_type": result.get("current_analysis", {}).get("type", "comprehensive"),
-            "agents_involved": agents_involved,
-            "detailed_analysis": {
-                "income_analysis": result.get("income_analysis"),
-                "budget_plan": result.get("budget_plan"),
-                "investment_advice": result.get("investment_advice"),
-                "debt_optimization": result.get("debt_optimization"),
-                "financial_education": result.get("financial_education")
-            }
+            "analysis_type": str(result.get("current_analysis", {}).get("type", "comprehensive")),
+            "agents_involved": [str(a) for a in agents_involved],
+            "detailed_analysis": detailed_analysis
         }
         
         return response
         
     except Exception as e:
-        logger.error(f"Error processing request: {str(e)}")
+        logger.error(f"Error processing request: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-# ... (rest of api_service.py remains the same) ...
 
 @app.post("/api/agents/what-if-scenario")
 async def process_what_if_scenario(request: WhatIfScenarioRequest):
     """Process what-if financial scenarios"""
     try:
-        user_profile_dict = request.user_profile.dict()
+        user_profile_dict = request.user_profile.model_dump()
         
-        # Simulate scenario impact
         original_budget = user_profile_dict['annual_income'] / 12 - user_profile_dict['monthly_expenses']
         
         impact = {
@@ -228,7 +260,6 @@ async def process_what_if_scenario(request: WhatIfScenarioRequest):
             impact["savingsImpact"] = -request.amount
             impact["goalDelay"] = round(request.amount / (original_budget * 0.3)) if original_budget > 0 else 0
             
-            # Suggest adjustments
             if request.amount > 1000:
                 impact["adjustments"] = [
                     {"category": "Entertainment", "reduction": request.amount * 0.3},
@@ -238,7 +269,7 @@ async def process_what_if_scenario(request: WhatIfScenarioRequest):
         
         elif request.scenario_type == "income":
             impact["newBudget"] = original_budget + request.amount
-            impact["savingsImpact"] = request.amount * 0.7  # Assume 70% goes to savings
+            impact["savingsImpact"] = request.amount * 0.7
             impact["goalDelay"] = -round(request.amount / (original_budget * 0.3)) if original_budget > 0 else 0
         
         return impact
@@ -252,17 +283,13 @@ async def get_budget_recommendations(request: UserProfileRequest):
     """Get budget recommendations"""
     try:
         from agents.budget_planner import BudgetPlannerAgent
-        
         agent = BudgetPlannerAgent()
-        user_profile_dict = request.dict()
-        
+        user_profile_dict = request.model_dump()
         budget_plan = agent.create_budget_plan(user_profile_dict)
-        
         return {
             "success": True,
-            "budget_plan": budget_plan
+            "budget_plan": _simplify_for_json(budget_plan)
         }
-        
     except Exception as e:
         logger.error(f"Error creating budget: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -272,17 +299,13 @@ async def get_investment_advice(request: UserProfileRequest):
     """Get investment recommendations"""
     try:
         from agents.investment_advisor import InvestmentAdvisorAgent
-        
         agent = InvestmentAdvisorAgent()
-        user_profile_dict = request.dict()
-        
+        user_profile_dict = request.model_dump()
         investment_advice = agent.provide_advice(user_profile_dict)
-        
         return {
             "success": True,
-            "investment_advice": investment_advice
+            "investment_advice": _simplify_for_json(investment_advice)
         }
-        
     except Exception as e:
         logger.error(f"Error generating investment advice: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -292,18 +315,14 @@ async def optimize_debt(request: UserProfileRequest):
     """Get debt optimization strategy"""
     try:
         from agents.debt_optimizer import DebtOptimizerAgent
-        
         agent = DebtOptimizerAgent()
-        user_profile_dict = request.dict()
+        user_profile_dict = request.model_dump()
         debts = user_profile_dict.get('debts', [])
-        
         debt_plan = agent.optimize_repayment(debts, user_profile_dict)
-        
         return {
             "success": True,
-            "debt_plan": debt_plan
+            "debt_plan": _simplify_for_json(debt_plan)
         }
-        
     except Exception as e:
         logger.error(f"Error optimizing debt: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

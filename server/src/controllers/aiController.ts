@@ -8,6 +8,7 @@ import mongoose from "mongoose";
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL || "http://localhost:8001";
 
+
 export const processAICommand = async (req: Request, res: Response) => {
   try {
     const user = req.user as IUserDocument;
@@ -16,77 +17,68 @@ export const processAICommand = async (req: Request, res: Response) => {
     // Get user's financial profile
     let profile = await FinancialProfileModel.findOne({ userId: user._id });
     
-    // If no profile exists, create a sample one
     if (!profile) {
-      profile = await FinancialProfileModel.create({
-        userId: user._id,
-        age: 30,
-        annual_income: 75000,
-        monthly_expenses: 3500,
-        savings: 10000,
-        goals: [
-          { name: "Emergency Fund", target: 15000, current: 5000, deadline: "2024-12-31", priority: 1 },
-          { name: "House Down Payment", target: 50000, current: 10000, deadline: "2026-06-30", priority: 2 }
-        ],
-        debts: [
-          { name: "Student Loan", balance: 25000, interest_rate: 4.5, minimum_payment: 300, type: "student" },
-          { name: "Credit Card", balance: 5000, interest_rate: 18.9, minimum_payment: 150, type: "credit_card" }
-        ],
-        transactions: [
-          { amount: 5000, category: "Salary", description: "Monthly salary", date: new Date(), type: "income" },
-          { amount: -1500, category: "Rent", description: "Monthly rent", date: new Date(), type: "expense" }
-        ],
-        risk_tolerance: "moderate",
-        investment_experience: "beginner"
+      return res.status(404).json({ 
+        success: false,
+        message: "Please create a financial profile first" 
       });
     }
 
     // Prepare request for Python AI service
-  const aiRequest = {
+    const aiRequest = {
       user_input: command,
       user_profile: {
         age: profile.age,
         annual_income: profile.annual_income,
         monthly_expenses: profile.monthly_expenses,
         savings: profile.savings,
-        debts: profile.debts,
+        debts: profile.debts.map(d => ({
+          name: d.name,
+          balance: d.balance,
+          interest_rate: d.interest_rate,
+          minimum_payment: d.minimum_payment,
+          type: d.type
+        })),
         financial_goals: profile.goals.map(g => ({
           name: g.name,
           target: g.target,
-          timeline_months: 12, // Calculate based on deadline
+          timeline_months: 12,
           priority: g.priority
         })),
         risk_tolerance: profile.risk_tolerance,
         investment_experience: profile.investment_experience,
         time_horizon: 10,
         transactions: profile.transactions.map(t => ({
-          amount: t.amount,
-          category: t.category,
-          description: t.description,
-          date: t.date.toISOString().split('T')[0]
+          amount: Number(t.amount),
+          category: String(t.category),
+          description: String(t.description),
+          date: new Date(t.date).toISOString().split('T')[0]
         }))
       }
     };
+
+    console.log("=== SENDING TO PYTHON ===");
+    console.log("User Input:", command);
+    console.log("Profile Age:", profile.age);
+    console.log("Transaction Count:", profile.transactions.length);
 
     // Call Python AI service
     const response = await axios.post(`${PYTHON_API_URL}/api/agents/process`, aiRequest);
     
     const aiResponse = response.data;
     
-    //  Extract and store complete agent output 
+    console.log("=== PYTHON RESPONSE ===");
+    console.log("Agent:", aiResponse.agent);
+    console.log("Analysis Type:", aiResponse.analysis_type);
+    console.log("Response Length:", aiResponse.final_output?.length || 0);
+
+    // Extract and store complete agent output
     const sessionId = uuidv4();
     
-    // Determine priority from response or calculate
-    const priority = aiResponse.priority || 
-                     aiResponse.detailed_analysis?.priority || 
-                     'medium';
+    const priority = aiResponse.priority || 'medium';
+    const actionable = !!(aiResponse.actionType || aiResponse.insights?.length > 0);
     
-    // Determine if actionable
-    const actionable = !!(aiResponse.actionType ||
-                          aiResponse.detailed_analysis?.actionType ||
-                          aiResponse.insights?.length > 0);
-    
-    // Create main agent output (the comprehensive plan)
+    // Create main agent output
     const mainOutput = await AgentOutputModel.create({
       userId: user._id,
       sessionId,
@@ -106,7 +98,7 @@ export const processAICommand = async (req: Request, res: Response) => {
       actionable
     });
 
-    // Store individual insights as separate outputs
+    // Store individual insights
     if (aiResponse.insights && Array.isArray(aiResponse.insights)) {
       for (const insight of aiResponse.insights) {
         await AgentOutputModel.create({
@@ -140,11 +132,14 @@ export const processAICommand = async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error("AI processing error:", error.response?.data || error.message);
+    console.error("=== AI PROCESSING ERROR ===");
+    console.error("Error:", error.response?.data || error.message);
+    console.error("Status:", error.response?.status);
+    
     res.status(500).json({ 
       success: false,
       message: "Failed to process AI command",
-      error: error.response?.data || error.message
+      error: error.response?.data?.detail || error.message
     });
   }
 };
