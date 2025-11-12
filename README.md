@@ -1,5 +1,5 @@
 # FINWISE 🧠✨
-###  AI-Powered Financial Strategist
+### AI-Powered Financial Strategist
 
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
@@ -58,7 +58,7 @@ Each layer — **Frontend**, **Backend**, and **AI Core** — is independently d
              │                                   │ <── AI Request (user_profile) ─>│
              │  <── Structured JSON ─────────────│ <── AI Plan + Metadata ─────────│
              │  <── Final Response (Serves JSON Data) ─────────────────────────────│
-```text
+```
 
 ### 1. Frontend (Client)
 
@@ -103,146 +103,12 @@ This multi-agent architecture allows FinWise to provide incredibly detailed and 
 
 ## 📁 Project Folder Structure
 
-This structure includes all components, pages, services, controllers, models, and AI agents.
-
 ```bash
 FINWISE/
-├── .gitignore
-├── README.md
-│
-├── client/
-│   ├── .env.example
-│   ├── eslint.config.js
-│   ├── index.html
-│   ├── package-lock.json
-│   ├── package.json
-│   ├── postcss.config.js
-│   ├── README.md
-│   ├── tailwind.config.js
-│   ├── tsconfig.app.json
-│   ├── tsconfig.json
-│   ├── tsconfig.node.json
-│   ├── vite.config.ts
-│   ├── node_modules/
-│   ├── public/
-│   └── src/
-│       ├── assets/
-│       ├── components/
-│       │   ├── ui/
-│       │   │   └── (shadcn components: Button.tsx, Card.tsx, Dialog.tsx, etc.)
-│       │   ├── Actionableinsights.tsx
-│       │   ├── AgentWorkflowVisualizer.tsx
-│       │   ├── AICommandBar.tsx
-│       │   ├── FinancialVitals.tsx
-│       │   ├── GoalProgress.tsx
-│       │   ├── InsightDetailModal.tsx  
-│       │   ├── InvestmentPortfolio.tsx
-│       │   ├── ScenarioWidget.tsx
-│       │   ├── Sidebar.tsx
-│       │   ├── SpendingAnalysis.tsx
-│       │   └── ThemeProvider.tsx
-│       ├── hooks/
-│       │   ├── useAuth.tsx
-│       │   └── useToast.tsx
-│       ├── lib/
-│       │   ├── apiClient.ts
-│       │   ├── queryClient.ts
-│       │   └── utils.ts
-│       ├── pages/
-│       │   ├── AllInsights.tsx      
-│       │   ├── Dashboard.tsx
-│       │   ├── FinancialStory.tsx
-│       │   ├── Login.tsx
-│       │   ├── NotFound.tsx
-│       │   ├── Portfolio.tsx
-│       │   ├── Register.tsx
-│       │   ├── Scenarios.tsx
-│       │   ├── UserProfile.tsx
-│       │   └── VerifyEmail.tsx
-│       ├── types/
-│       │   └── index.ts
-│       ├── App.css
-│       ├── App.tsx
-│       ├── index.css
-│       └── main.tsx
-│
-└── server/
-    ├── .env
-    ├── .gitignore
-    ├── package-lock.json
-    ├── package.json
-    ├── README.md
-    ├── tsconfig.json
-    ├── node_modules/
-    │
-    ├── AI_Core/
-    │   ├── .env
-    │   ├── finwise.log
-    │   ├── main.py
-    │   ├── api_service.py
-    │   ├── README.md
-    │   ├── requirements.txt
-    │   ├── agents/
-    │   │   ├── __init__.py
-    │   │   ├── __pycache__/
-    │   │   ├── budget_planner.py
-    │   │   ├── debt_optimizer.py
-    │   │   ├── financial_educator.py
-    │   │   ├── income_expense_analyzer.py
-    │   │   ├── investment_advisor.py
-    │   │   └── master_agent.py
-    │   ├── config/
-    │   │   ├── __init__.py
-    │   │   ├── __pycache__/
-    │   │   └── settings.py
-    │   ├── graph/
-    │   │   ├── __init__.py
-    │   │   ├── __pycache__/
-    │   │   ├── state.py
-    │   │   └── workflow.py
-    │   ├── tools/
-    │   │   ├── __init__.py
-    │   │   ├── __pycache__/
-    │   │   ├── data_processors.py
-    │   │   └── financial_calculators.py
-    │   └── utils/
-    │       ├── __init__.py
-    │       ├── __pycache__/
-    │       └── helpers.py
-    │
-    └── src/
-        ├── config/
-        │   ├── databases.ts
-        │   └── passports.ts
-        ├── controllers/
-        │   ├── authController.ts
-        │   └── aiController.ts
-        ├── models/
-        │   ├── agentOutputModel.ts
-        │   ├── financialProfileModel.ts
-        │   └── userModel.ts
-        ├── routes/
-        │   ├── authRoutes.ts
-        │   └── aiRoutes.ts
-        └── utils/
-            ├── sendEmail.ts
-            └── server.ts
-
-## 📸 Screenshots
-
-*(Here you should add 3-4 screenshots of your application)*
-
-****
-*The main Strategist's Desk, showing Financial Vitals and the Actionable Insights component.*
-
-****
-*A user asking a complex question and the AI's response rendering in the expandable modal.*
-
-****
-*Showing the full "🎯 YOUR COMPREHENSIVE FINANCIAL PLAN" after clicking an insight card.*
-
-****
-*The dedicated page listing all historical insights, which can be clicked to open the detail modal.*
+├── client/ (React + TypeScript frontend)
+├── server/ (Node.js backend + AI Core microservice)
+└── AI_Core/ (Python FastAPI + LangGraph agents)
+```
 
 ---
 
@@ -256,67 +122,40 @@ Follow these instructions to get the complete project running locally. You will 
 * npm
 * Python (v3.10 or later)
 * pip
-* MongoDB (A local instance or a free Atlas cluster URL)
+* MongoDB (local or Atlas)
 
-### 1. Backend (Node.js Server)
-
-This server runs on `http://localhost:3000`.
-
+### 1️⃣ Backend (Node.js Server)
 ```bash
-# 1. Navigate to the server directory
 cd FINWISE/server
-
-# 2. Install dependencies
 npm install
-
-# 3. Create a .env file in the /server directory
-touch .env
-
-# 4. Add your environment variables to .env
-#    (You can copy from .env.example if one exists)
-MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=your_super_secret_jwt_key
-PYTHON_API_URL=http://localhost:8001
-EMAIL_USER=your_gmail_for_nodemailer@gmail.com
-EMAIL_PASSWORD=your_gmail_app_password
-EMAIL_FROM="FinWise <your_gmail_for_nodemailer@gmail.com>"
-GOOGLE_CLIENT_ID=your_google_oauth_client_id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
-
-# 5. Run the server
 npm run dev
+```
 
-2. AI Core (Python Microservice)
-This server runs on http://localhost:8001.
-
-Bash
-
-# 1. In a NEW terminal, navigate to the AI_Core directory
+### 2️⃣ AI Core (Python Microservice)
+```bash
 cd FINWISE/server/AI_Core
-
-# 2. Install Python dependencies
 pip install -r requirements.txt
-
-# 3. Create a .env file in the /AI_Core directory
-touch .env
-
-# 4. Add your Google Gemini API key
-GEMINI_API_KEY=your_google_gemini_api_key
-
-# 5. Run the FastAPI server with uvicorn
 uvicorn api_service:app --reload --port 8001
-3. Frontend (React Client)
-This server runs on http://localhost:5173.
+```
 
-Bash
-
-# 1. In a THIRD terminal, navigate to the client directory
+### 3️⃣ Frontend (React Client)
+```bash
 cd FINWISE/client
-
-# 2. Install dependencies
 npm install
-
-# 3. Run the frontend development server
-#    (It's already configured to proxy /api requests to localhost:3000)
 npm run dev
-You can now open http://localhost:5173 in your browser to use the application!
+```
+
+Then open [http://localhost:5173](http://localhost:5173) in your browser.
+
+---
+
+## 📸 Screenshots
+
+* Dashboard showing **Financial Vitals** and **Actionable Insights**.
+* AI-generated comprehensive financial plan modal.
+* What-if scenarios and insights timeline.
+
+---
+
+**FinWise** — _Empowering Smarter Financial Decisions through Multi-Agent Intelligence_ 💡
+
