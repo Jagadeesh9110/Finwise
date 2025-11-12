@@ -58,7 +58,7 @@ Each layer — **Frontend**, **Backend**, and **AI Core** — is independently d
              │                                   │ <── AI Request (user_profile) ─>│
              │  <── Structured JSON ─────────────│ <── AI Plan + Metadata ─────────│
              │  <── Final Response (Serves JSON Data) ─────────────────────────────│
-
+```text
 
 ### 1. Frontend (Client)
 
