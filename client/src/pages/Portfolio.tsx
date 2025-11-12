@@ -27,7 +27,7 @@ import {
   MoreHorizontal,
   Target,
   Loader2,
-  Wand2, // For AI Analysis tab
+  Wand2,
 } from "lucide-react";
 import {
   LineChart,
@@ -66,7 +66,7 @@ export default function Portfolio() {
     name: "",
     type: "Equity", 
     amount: 0,
-    date: new Date().toISOString().split('T')[0], // Add date field
+    date: new Date().toISOString().split('T')[0], 
   });
 
   // Query 1: Get the user's financial profile (for transactions)
@@ -82,38 +82,41 @@ export default function Portfolio() {
   });
 
   const addInvestmentMutation = useMutation({
-    mutationFn: async (investment: typeof newInvestment) => {
-
-      return await apiClient<IFinancialProfile>(
-        `/financial-profiles/${userId}/investments`, 
-        {
-          method: "POST",
-          body: JSON.stringify({
-            name: investment.name,
-            type: investment.type, 
-            amount: investment.amount,
-            date: investment.date,
-          }),
-        }
-      );
-    },
-    onSuccess: () => {
-      toast({
-        title: "Investment Added",
-        description: "Your investment has been recorded successfully.",
-      });
-      setIsAddDialogOpen(false);
-      setNewInvestment({ name: "", type: "Equity", amount: 0, date: new Date().toISOString().split('T')[0] });
-      queryClient.invalidateQueries({ queryKey: [`/api/financial-profiles`, userId] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add investment. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  mutationFn: async (investment: typeof newInvestment) => {
+    console.log("Sending investment:", investment); 
+    
+    return await apiClient<IFinancialProfile>(
+      `/financial-profiles/investments`, 
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: investment.name,
+          type: investment.type, 
+          amount: investment.amount,
+          date: investment.date,
+        }),
+      }
+    );
+  },
+  onSuccess: (data) => {
+    console.log("Investment added, response:", data);
+    toast({
+      title: "Investment Added",
+      description: "Your investment has been recorded successfully.",
+    });
+    setIsAddDialogOpen(false);
+    setNewInvestment({ name: "", type: "Equity", amount: 0, date: new Date().toISOString().split('T')[0] });
+    queryClient.invalidateQueries({ queryKey: [`/api/financial-profiles`, userId] });
+  },
+  onError: (error: any) => {
+    console.error("Mutation error:", error); 
+    toast({
+      title: "Error",
+      description: error.message || "Failed to add investment. Please try again.",
+      variant: "destructive",
+    });
+  },
+});
 
   const handleAddInvestment = () => {
     if (newInvestment.name && newInvestment.amount > 0) {
@@ -122,104 +125,106 @@ export default function Portfolio() {
   };
 
   const portfolioData = useMemo(() => {
-    if (!profile?.transactions) {
-      return { totalValue: 0, dynamicHoldings: [], dynamicAllocations: [] };
-    }
+  if (!profile?.transactions) {
+    return { totalValue: 0, dynamicHoldings: [], dynamicAllocations: [] };
+  }
 
-    const investmentTransactions = profile.transactions.filter(
-      (t) => t.type === "investment"
-    );
+  const investmentTransactions = profile.transactions.filter(
+    (t) => t.category === "Investment"
+  );
 
-    const totalValue = investmentTransactions.reduce(
-      (sum, t) => sum + t.amount, // Amounts are stored as positive
-      0
-    );
+  // Since amounts are negative, take absolute value for display
+  const totalValue = Math.abs(
+    investmentTransactions.reduce((sum, t) => sum + t.amount, 0)
+  );
 
-    const holdingsMap = new Map<string, { name: string, type: string, amount: number }>();
-    investmentTransactions.forEach((t) => {
-      const existing = holdingsMap.get(t.description);
-      if (existing) {
-        existing.amount += t.amount;
-      } else {
-        let type = "Equity";
-        if (t.description.toLowerCase().includes("debt")) type = "Debt";
-        if (t.description.toLowerCase().includes("gold")) type = "Commodity";
-        if (t.description.toLowerCase().includes("liquid")) type = "Cash";
-        
-        holdingsMap.set(t.description, {
-          name: t.description,
-          type: type,
-          amount: t.amount,
-        });
-      }
-    });
-
-    const dynamicHoldings = Array.from(holdingsMap.values());
-
-    // Calculate allocations
-    const allocMap = { Equity: 0, Debt: 0, Gold: 0, Cash: 0 };
-    dynamicHoldings.forEach(h => {
-      if (h.type === "Equity") allocMap.Equity += h.amount;
-      else if (h.type === "Debt") allocMap.Debt += h.amount;
-      else if (h.type === "Commodity") allocMap.Gold += h.amount;
-      else if (h.type === "Cash") allocMap.Cash += h.amount;
-    });
-
-    const dynamicAllocations = totalValue > 0 ? [
-      { name: "Equity", value: (allocMap.Equity / totalValue) * 100, color: "hsl(158 64% 52%)" },
-      { name: "Debt", value: (allocMap.Debt / totalValue) * 100, color: "hsl(221 83% 53%)" },
-      { name: "Gold", value: (allocMap.Gold / totalValue) * 100, color: "hsl(46 95% 53%)" },
-      { name: "Cash", value: (allocMap.Cash / totalValue) * 100, color: "hsl(0 84% 60%)" },
-    ].filter(alloc => alloc.value > 0) 
-     : [];
-
-    return { totalValue, dynamicHoldings, dynamicAllocations };
-  }, [profile]);
-  
-  // === THIS LOGIC IS NOW CORRECT ===
-  const performanceData = useMemo(() => {
-    if (!profile?.transactions) return [];
-
-    const investmentTx = profile.transactions
-      .filter(t => t.type === 'investment') 
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    if (investmentTx.length === 0) return [];
-
-    const monthlyData = new Map<string, number>();
-    let cumulativeValue = 0;
-
-    for (const t of investmentTx) {
-      const date = new Date(t.date);
-      const month = date.toISOString().slice(0, 7); // 'YYYY-MM' format
-      cumulativeValue += t.amount;
-      monthlyData.set(month, cumulativeValue);
-    }
+  const holdingsMap = new Map<string, { name: string, type: string, amount: number }>();
+  investmentTransactions.forEach((t) => {
+    const existing = holdingsMap.get(t.description);
+    const absAmount = Math.abs(t.amount); 
     
-    const filledData = [];
-    const startDate = new Date(investmentTx[0].date);
-    const endDate = new Date();
-    let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-    let lastValue = 0;
-
-    while (currentDate <= endDate) {
-      const monthKey = currentDate.toISOString().slice(0, 7);
-      const monthName = currentDate.toLocaleString('default', { month: 'short' });
+    if (existing) {
+      existing.amount += absAmount;
+    } else {
+      let type = "Equity";
+      if (t.description.toLowerCase().includes("debt") || 
+          t.description.toLowerCase().includes("bond")) type = "Debt";
+      if (t.description.toLowerCase().includes("gold") || 
+          t.description.toLowerCase().includes("etf")) type = "Commodity";
+      if (t.description.toLowerCase().includes("liquid")) type = "Cash";
       
-      if (monthlyData.has(monthKey)) {
-        lastValue = monthlyData.get(monthKey)!;
-      }
-      
-      filledData.push({
-        month: `${monthName} ${currentDate.getFullYear()}`,
-        value: lastValue,
+      holdingsMap.set(t.description, {
+        name: t.description,
+        type: type,
+        amount: absAmount,
       });
+    }
+  });
 
-      currentDate.setMonth(currentDate.getMonth() + 1);
+  const dynamicHoldings = Array.from(holdingsMap.values());
+
+  const allocMap = { Equity: 0, Debt: 0, Gold: 0, Cash: 0 };
+  dynamicHoldings.forEach(h => {
+    if (h.type === "Equity") allocMap.Equity += h.amount;
+    else if (h.type === "Debt") allocMap.Debt += h.amount;
+    else if (h.type === "Commodity") allocMap.Gold += h.amount;
+    else if (h.type === "Cash") allocMap.Cash += h.amount;
+  });
+
+  const dynamicAllocations = totalValue > 0 ? [
+    { name: "Equity", value: (allocMap.Equity / totalValue) * 100, color: "hsl(158 64% 52%)" },
+    { name: "Debt", value: (allocMap.Debt / totalValue) * 100, color: "hsl(221 83% 53%)" },
+    { name: "Gold", value: (allocMap.Gold / totalValue) * 100, color: "hsl(46 95% 53%)" },
+    { name: "Cash", value: (allocMap.Cash / totalValue) * 100, color: "hsl(0 84% 60%)" },
+  ].filter(alloc => alloc.value > 0) 
+   : [];
+
+  return { totalValue, dynamicHoldings, dynamicAllocations };
+}, [profile]);
+  
+  const performanceData = useMemo(() => {
+  if (!profile?.transactions) return [];
+
+  const investmentTx = profile.transactions
+    .filter(t => t.category === "Investment") 
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  if (investmentTx.length === 0) return [];
+
+  const monthlyData = new Map<string, number>();
+  let cumulativeValue = 0;
+
+  for (const t of investmentTx) {
+    const date = new Date(t.date);
+    const month = date.toISOString().slice(0, 7);
+    cumulativeValue += Math.abs(t.amount);
+    monthlyData.set(month, cumulativeValue);
+  }
+  
+  const filledData = [];
+  const startDate = new Date(investmentTx[0].date);
+  const endDate = new Date();
+  let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  let lastValue = 0;
+
+  while (currentDate <= endDate) {
+    const monthKey = currentDate.toISOString().slice(0, 7);
+    const monthName = currentDate.toLocaleString('default', { month: 'short' });
+    
+    if (monthlyData.has(monthKey)) {
+      lastValue = monthlyData.get(monthKey)!;
     }
     
-    return filledData.slice(-12); // Return last 12 months
-  }, [profile]);
+    filledData.push({
+      month: `${monthName} ${currentDate.getFullYear()}`,
+      value: lastValue,
+    });
+
+    currentDate.setMonth(currentDate.getMonth() + 1);
+  }
+  
+  return filledData.slice(-12);
+}, [profile]);
 
   const investmentInsights = useMemo(() => {
     if (!insights) return [];

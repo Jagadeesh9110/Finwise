@@ -19,10 +19,10 @@ router.use(passport.authenticate("jwt", { session: false }));
 router.post("/process-command", processAICommand);
 router.post("/scenarios/what-if", processWhatIfScenario);
 
+router.post("/financial-profiles/investments", addInvestment);
 // Financial profile routes
 router.get("/financial-profiles/:userId", getFinancialProfile);
 router.put("/financial-profiles/:userId", updateFinancialProfile);
-router.post("/financial-profiles/:userId/investments", addInvestment);
 
 // Agent outputs
 router.get("/agent-outputs/:id", getAgentOutputById);

@@ -49,28 +49,32 @@ const financialProfileSchema = new Schema<IFinancialProfileDocument>(
     monthly_expenses: { type: Number, required: true },
     savings: { type: Number, default: 0 },
     goals: [{
-      name: String,
-      target: Number,
-      current: Number,
-      deadline: String,
-      priority: Number
+      name: { type: String, required: true },
+      target: { type: Number, required: true },
+      current: { type: Number, required: true },
+      deadline: { type: String, required: true },
+      priority: { type: Number, required: true }
     }],
     
+    // ✅ FIX: Properly define the debts subdocument schema
     debts: [{
-      name: String,
-      balance: Number,
-      interest_rate: Number,
-      minimum_payment: Number,
-      type: String
+      name: { type: String, required: true },
+      balance: { type: Number, required: true },
+      interest_rate: { type: Number, required: true },
+      minimum_payment: { type: Number, required: true },
+      type: { type: String, required: true }
     }],
 
-
     transactions: [{
-      amount: Number,
-      category: String,
-      description: String,
-      date: Date,
-      type: { type: String, enum: ['income', 'expense', 'investment'] }
+      amount: { type: Number, required: true },
+      category: { type: String, required: true },
+      description: { type: String, required: true },
+      date: { type: Date, required: true },
+      type: { 
+        type: String, 
+        enum: ['income', 'expense', 'investment'],
+        required: true 
+      }
     }],
     risk_tolerance: { 
       type: String, 

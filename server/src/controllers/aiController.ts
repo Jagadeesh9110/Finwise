@@ -249,33 +249,74 @@ export const updateFinancialProfile = async (req: Request, res: Response) => {
 
 export const addInvestment = async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    // ===== DEBUG LOGGING =====
+    console.log("=== ADD INVESTMENT REQUEST ===");
+    console.log("req.user:", req.user);
+    console.log("req.body:", req.body);
+    console.log("req.isAuthenticated():", req.isAuthenticated ? req.isAuthenticated() : "N/A");
+    
+    const user = req.user as IUserDocument;
+    
+    if (!user || !user._id) {
+      console.error("❌ User not authenticated or user._id missing");
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+    
     const { name, type, amount, date } = req.body;
+    
+    console.log("Authenticated user ID:", user._id);
+    console.log("Investment details:", { name, type, amount, date });
 
-    const profile = await FinancialProfileModel.findOne({ userId });
-    if (!profile) {
-      return res.status(404).json({ message: "Profile not found" });
+    // Validate input
+    if (!name || !amount || amount <= 0) {
+      console.error("❌ Invalid investment data");
+      return res.status(400).json({ message: "Invalid investment data" });
     }
 
+    console.log("Finding profile for userId:", user._id);
+    const profile = await FinancialProfileModel.findOne({ userId: user._id });
+    
+    if (!profile) {
+      console.error("❌ Profile not found for userId:", user._id);
+      return res.status(404).json({ message: "Profile not found" });
+    }
+    
+    console.log("Profile found:", profile._id);
+
     const newTransaction: ITransaction = {
-      amount: Number(amount), // Store as a positive value
+      amount: -Math.abs(Number(amount)), // Negative for expense
       category: "Investment", 
       description: name,
       date: date ? new Date(date) : new Date(),
-      type: "investment", 
+      type: "expense", // Keep consistent with existing data
     };
+    
+    console.log("New transaction:", newTransaction);
 
     // Add the new transaction and deduct the amount from savings
     profile.transactions.push(newTransaction);
-    profile.savings = (profile.savings || 0) - Number(amount);
+    profile.savings = (profile.savings || 0) - Math.abs(Number(amount));
     
+    console.log("Saving profile...");
     const updatedProfile = await profile.save();
+    
+    console.log("✅ Investment added successfully");
 
-    res.status(201).json({ message: "Investment added successfully", profile: updatedProfile });
+    res.status(201).json({ 
+      message: "Investment added successfully", 
+      profile: updatedProfile 
+    });
 
   } catch (error: any) {
-    console.error("Error adding investment:", error);
-    res.status(500).json({ message: "Failed to add investment", error: error.message });
+    console.error("❌ ERROR in addInvestment:", error);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    
+    res.status(500).json({ 
+      message: "Failed to add investment", 
+      error: error.message 
+    });
   }
 };
 
