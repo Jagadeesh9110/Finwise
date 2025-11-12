@@ -8,6 +8,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 import sys
 import io
+from contextlib import asynccontextmanager
+import pandas as pd  # For serializer
 
 # Set UTF-8 encoding for Windows console to handle emojis
 if sys.platform == "win32":
@@ -33,8 +35,17 @@ except ValueError as e:
     logger.error(f"Error: {str(e)}")
     exit(1)
 
-# Initialize FastAPI app
-app = FastAPI(title="FinWise AI Core", version="1.0.0")
+# Lifespan for startup (fixes deprecation)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global workflow
+    logger.info("Initializing FinWise AI Core...")
+    workflow = create_financial_workflow()
+    logger.info("AI Core ready!")
+    yield
+    logger.info("Shutting down FinWise AI Core...")
+
+app = FastAPI(title="FinWise AI Core", version="1.0.0", lifespan=lifespan)
 
 # Add CORS middleware
 app.add_middleware(
@@ -45,18 +56,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize workflow globally
-workflow = None
-
-
 def _simplify_for_json(obj: Any) -> Any:
-    """Recursively simplify objects for JSON serialization"""
+    """Recursively simplify objects for JSON serialization (pandas-safe)"""
     if obj is None:
         return None
     elif isinstance(obj, (str, int, float, bool)):
         return obj
+    elif isinstance(obj, pd.Series):
+        return _simplify_for_json(obj.to_dict())
+    elif isinstance(obj, pd.DataFrame):
+        return [_simplify_for_json(row.to_dict()) for _, row in obj.iterrows()]
     elif isinstance(obj, dict):
-        return {k: _simplify_for_json(v) for k, v in obj.items() if v is not None}
+        # === ENHANCED: Str keys to avoid unhashable ===
+        cleaned = {}
+        for k, v in obj.items():
+            str_k = str(k)
+            cleaned[str_k] = _simplify_for_json(v)
+        return cleaned
     elif isinstance(obj, (list, tuple)):
         return [_simplify_for_json(item) for item in obj]
     elif hasattr(obj, 'model_dump'):
@@ -66,7 +82,7 @@ def _simplify_for_json(obj: Any) -> Any:
     else:
         return str(obj)
 
-# Request/Response Models
+# Request/Response Models (unchanged)
 class FinancialGoalRequest(BaseModel):
     name: str
     target: float
@@ -106,14 +122,6 @@ class WhatIfScenarioRequest(BaseModel):
     scenario_type: str  # 'expense', 'income', 'investment'
     amount: float
     description: Optional[str] = ""
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the workflow on startup"""
-    global workflow
-    logger.info("Initializing FinWise AI Core...")
-    workflow = create_financial_workflow()
-    logger.info("AI Core ready!")
 
 @app.get("/health")
 async def health_check():
@@ -162,15 +170,12 @@ async def process_financial_request(request: ProcessRequest):
         final_output = result.get("final_output", "")
         
         if isinstance(final_output, dict):
-            response_text = final_output.get("response", "")
-            if not isinstance(response_text, str):
-                response_text = str(final_output)
-            
+            response_text = final_output.get("response", str(final_output))
             agent = final_output.get("agent", "master")
             action_type = final_output.get("actionType")
             priority = final_output.get("priority", "medium")
             
-            #  Ensure insights is always a clean list of dicts
+            # Ensure insights is clean list of dicts
             raw_insights = final_output.get("insights", [])
             insights = []
             if isinstance(raw_insights, list):
@@ -184,14 +189,13 @@ async def process_financial_request(request: ProcessRequest):
                         }
                         insights.append(clean_insight)
         else:
-            # Handles FinancialEducator path
-            response_text = str(final_output) if final_output else ""
+            response_text = str(final_output)
             agent = "financial_educator"
             action_type = "start_learning"
             priority = "medium"
             insights = []
         
-        # Determine which agents were involved
+        # Determine agents involved
         agents_involved = []
         if result.get("income_analysis"):
             agents_involved.append("income_expense_analyzer")
@@ -209,7 +213,7 @@ async def process_financial_request(request: ProcessRequest):
         elif not agents_involved:
             agents_involved = ["master"]
         
-        # Simplify detailed analysis for JSON serialization
+        # Simplify detailed analysis (enhanced for pandas)
         detailed_analysis = {}
         for key in ["income_analysis", "budget_plan", "investment_advice", "debt_optimization", "financial_education"]:
             if result.get(key):
@@ -218,17 +222,21 @@ async def process_financial_request(request: ProcessRequest):
                     detailed_analysis[key] = simplified
                 except Exception as e:
                     logger.warning(f"Error simplifying {key}: {str(e)}")
-                    detailed_analysis[key] = {"error": "Serialization failed"}
+                    detailed_analysis[key] = {"error": str(e)}
+        
+        # === FIX: Clean analysis_type (enum → str) ===
+        analysis_raw = result.get("current_analysis", {}).get("type", "comprehensive")
+        analysis_type = str(analysis_raw).split('.')[-1].lower() if hasattr(analysis_raw, 'name') else str(analysis_raw).lower()
         
         response = {
             "success": True,
-            "final_output": str(response_text),
-            "agent": str(agent),
-            "actionType": str(action_type) if action_type else None,
-            "priority": str(priority),
+            "final_output": response_text,
+            "agent": agent,
+            "actionType": action_type,
+            "priority": priority,
             "insights": insights,
-            "analysis_type": str(result.get("current_analysis", {}).get("type", "comprehensive")),
-            "agents_involved": [str(a) for a in agents_involved],
+            "analysis_type": analysis_type,
+            "agents_involved": agents_involved,
             "detailed_analysis": detailed_analysis
         }
         
@@ -237,7 +245,6 @@ async def process_financial_request(request: ProcessRequest):
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/api/agents/what-if-scenario")
 async def process_what_if_scenario(request: WhatIfScenarioRequest):
