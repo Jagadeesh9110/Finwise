@@ -107,7 +107,8 @@ This multi-agent architecture allows FinWise to provide incredibly detailed and 
 FINWISE/
 ├── client/ (React + TypeScript frontend)
 └──  server/ (Node.js backend + AI Core microservice)
-       └── AI_Core/ (Python FastAPI + LangGraph agents)
+       ├──AI_Core/ (Python FastAPI + LangGraph agents)
+       └── src/(node.js Backend) 
 ```
 
 ---
