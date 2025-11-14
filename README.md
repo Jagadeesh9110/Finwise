@@ -149,13 +149,12 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 📸 Screenshots
+## 🚀 Demo Working App
 
-* Dashboard showing **Financial Vitals** and **Actionable Insights**.
-* AI-generated comprehensive financial plan modal.
-* What-if scenarios and insights timeline.
+🎥 **Live Demo:**  
+👉 [Click here to view the working demo on Google Drive]([https://drive.google.com/](https://drive.google.com/file/d/1WbJZd8Rap14gfbpK36pMV1a2FX-mi8dy/view?usp=drive_link))  
+_This demo shows the full working flow of FinWise, including data input, AI analysis, and final financial recommendations powered by multi-agent intelligence._
 
 ---
 
-**FinWise** — _Empowering Smarter Financial Decisions through Multi-Agent Intelligence_ 💡
-
+**FinWise** — *Empowering smarter financial decisions through multi-agent intelligence* 💡
