@@ -16,7 +16,7 @@
 * **J.Ganesh Kumar Reddy** - 23BDS024
 * **B. Varshith** - 23BDS011
 * **B.Harsha vardhan** - 23BDS015
-* **C.Sai Aravind** - 23BDS074
+* **C.Sai Aravind** - 23BDS075
 
 ---
 
